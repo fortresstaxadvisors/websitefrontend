@@ -1,0 +1,12 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fortressMarkGradient" x1="28" y1="8" x2="166" y2="176" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D0B078"/>
+      <stop offset="1" stop-color="#1D2936"/>
+    </linearGradient>
+  </defs>
+  <path d="M20 28L76 0L132 28V58H113V40L76 21L39 40V58H20V28Z" fill="#B99760"/>
+  <path d="M20 68H132V187L76 216L20 187V68Z" fill="url(#fortressMarkGradient)"/>
+  <path d="M49 91H99V106H67V126H94V141H67V174H49V91Z" fill="#F4EFE7"/>
+  <path d="M35 68L76 47L117 68" stroke="#F4EFE7" stroke-width="7"/>
+</svg>

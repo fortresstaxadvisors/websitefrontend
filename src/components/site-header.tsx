@@ -194,6 +194,8 @@ export function SiteHeader() {
                 ? "industries"
                 : null;
             const panelOpen = hasMenu && menu === id;
+            const underlineVisible =
+              isActive(item.href) || (hasMenu && menu === id);
             return (
               <div
                 key={item.href}
@@ -266,14 +268,9 @@ export function SiteHeader() {
                     </span>
                   ) : null}
                   <span
-                    className="absolute -bottom-1 left-0 h-px w-full bg-[var(--accent)] transition-transform duration-300"
-                    style={{
-                      transform:
-                        isActive(item.href) || menu === id
-                          ? "scaleX(1)"
-                          : "scaleX(0)",
-                      transformOrigin: "left",
-                    }}
+                    className={`absolute -bottom-1 left-0 h-px w-full origin-left bg-[var(--accent)] transition-transform duration-300 group-hover:scale-x-100 group-focus-visible:scale-x-100 ${
+                      underlineVisible ? "scale-x-100" : "scale-x-0"
+                    }`}
                   />
                 </Link>
 

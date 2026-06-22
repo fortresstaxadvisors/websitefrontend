@@ -233,6 +233,9 @@ function audienceFromTopic(topic: string): string {
   }
 }
 
+/** Editorial format labels, in the order they rank for explicit declarations. */
+const FORMATS = ["Tax Alert", "Analysis", "Reference"];
+
 function formatFromCategory(category: string, title: string): string {
   const c = `${category} ${title}`.toLowerCase();
   if (c.includes("checklist") || c.includes("faq") || c.includes("reference"))
@@ -313,6 +316,16 @@ export function getInsights(): InsightEntry[] {
       const category = parsed.metadata.Category ?? "Insights";
       const topic = topicFromCategory(category);
 
+      // An article may declare `**Format:** Tax Alert` explicitly; otherwise we
+      // derive it from category/title keywords. Explicit always wins so the
+      // editorial team controls what surfaces in the Tax Alerts stream rather
+      // than depending on a keyword landing in the headline.
+      const explicitFormat = parsed.metadata.Format;
+      const format =
+        explicitFormat && FORMATS.includes(explicitFormat)
+          ? explicitFormat
+          : formatFromCategory(category, parsed.title);
+
       return {
         slug,
         title: parsed.title || slugToLabel(slug),
@@ -321,7 +334,7 @@ export function getInsights(): InsightEntry[] {
         category,
         topic,
         audience: audienceFromTopic(topic),
-        format: formatFromCategory(category, parsed.title),
+        format,
         published,
         year: yearMatch?.[1] ?? "Archive",
         publishedSort: publishedSortKey(published),

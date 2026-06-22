@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ArticleFigure } from "@/components/insights/figures/article-figure";
 
 /*
   Prose — the editorial body renderer for Fortress long-form content.
@@ -12,7 +13,8 @@ import type { ReactNode } from "react";
    - an optional source-anchor citation block
 
   The markdown subset matches the Fortress copy files: `##`/`###` headings,
-  `- ` lists, `> ` blockquotes, `**bold:**` lead-ins, and paragraphs.
+  `- ` lists, `> ` blockquotes, `**bold:**` lead-ins, and paragraphs. A
+  standalone `::figure id="…"` line renders a hand-built in-article diagram.
 */
 
 type ProseProps = {
@@ -59,6 +61,7 @@ export function Prose({
           !b.startsWith("## ") &&
           !b.startsWith("### ") &&
           !b.startsWith("> ") &&
+          !b.startsWith("::figure") &&
           !b.split("\n").every((line) => line.trim().startsWith("- "))
       )
     : -1;
@@ -68,6 +71,14 @@ export function Prose({
       className={`tnum text-[var(--muted)] [&>*+*]:mt-6 ${className}`}
     >
       {blocks.map((block, index) => {
+        // In-article diagram: a one-line `::figure id="…"` token resolves to a
+        // hand-built figure primitive via the registry. Authored as data so the
+        // body markdown stays clean and the visuals stay on-brand.
+        const figureMatch = block.match(/^::figure\s+id="([^"]+)"\s*$/);
+        if (figureMatch) {
+          return <ArticleFigure key={index} id={figureMatch[1]} />;
+        }
+
         if (block.startsWith("## ")) {
           return (
             <h2

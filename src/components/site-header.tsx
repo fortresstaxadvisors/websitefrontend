@@ -501,6 +501,19 @@ export function SiteHeader() {
             </span>
           </Link>
 
+          <div className="grid grid-cols-2 gap-3 border-b border-[var(--line-soft)] py-4">
+            {utilityNav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className="text-sm font-semibold text-[var(--muted)]"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+
           <Link
             href="/contact"
             onClick={() => setOpen(false)}

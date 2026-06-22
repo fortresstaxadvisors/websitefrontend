@@ -66,6 +66,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // Firm
     entry("/about", 0.7, "monthly"),
     entry("/leadership", 0.7, "monthly"),
+    entry("/search", 0.4, "monthly"),
     entry("/careers", 0.6, "monthly"),
     entry("/contact", 0.7, "yearly"),
     entry("/consultation", 0.7, "yearly"),

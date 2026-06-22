@@ -111,7 +111,7 @@ export const primaryNav: { href: string; label: string }[] = [
 
 /** Utility-bar links (search + client portal). Forthcoming features labeled honestly. */
 export const utilityNav: { href: string; label: string }[] = [
-  { href: "/insights", label: "Search" },
+  { href: "/search", label: "Search" },
   { href: "/client-portal", label: "Client Portal" },
 ];
 

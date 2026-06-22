@@ -110,9 +110,9 @@ export function OrganizationJsonLd() {
  * the Organization node so AI engines and Google can model the site itself
  * (name, language, publisher) and discover the on-site search surface.
  *
- * The site's search experience routes through /insights (see `utilityNav`),
+ * The site's search experience routes through /search (see `utilityNav`),
  * which accepts a `?q=` query — the SearchAction target reflects that, so the
- * sitelinks search box (where shown) lands users on real results.
+ * sitelinks search box (where shown) lands users on site-wide results.
  */
 export function WebSiteJsonLd() {
   const data: JsonLdDocument = {
@@ -128,7 +128,7 @@ export function WebSiteJsonLd() {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${SITE_URL}/insights?q={search_term_string}`,
+        urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
       },
       // schema.org requires this to be a literal string naming the query var.
       "query-input": "required name=search_term_string",

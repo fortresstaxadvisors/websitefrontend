@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Section } from "@/components/ui/section";
 import { SectionHeader, Eyebrow } from "@/components/ui/primitives";
 import { CTABlock } from "@/components/ui/cta-block";
@@ -28,29 +29,6 @@ export const metadata: Metadata = {
   },
 };
 
-/**
- * Lightweight, accent-insensitive substring match across the fields a reader
- * would search by. Powers the `?q=` search surface the WebSite SearchAction
- * (json-ld) points at, so that structured-data promise resolves to real
- * results rather than a dead query.
- */
-function matchesQuery(insight: ReturnType<typeof getInsights>[number], q: string) {
-  const haystack = [
-    insight.title,
-    insight.summary,
-    insight.category,
-    insight.topic,
-    insight.year,
-  ]
-    .join(" ")
-    .toLowerCase();
-  return q
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((term) => haystack.includes(term));
-}
-
 export default async function InsightsPage({
   searchParams,
 }: {
@@ -59,12 +37,10 @@ export default async function InsightsPage({
   const rawQ = (await searchParams).q;
   const query = (Array.isArray(rawQ) ? rawQ[0] : rawQ)?.trim() ?? "";
 
-  // Search surface: when `?q=` is present, render a focused results view
-  // instead of the full editorial hub. No query = the hub is byte-for-byte
-  // unchanged (the search path is purely additive).
+  // Legacy compatibility: structured data previously routed site searches to
+  // `/insights?q=...`. Send those requests to the site-wide search surface.
   if (query) {
-    const results = getInsights().filter((i) => matchesQuery(i, query));
-    return <InsightsSearch query={query} results={results} />;
+    redirect(`/search?q=${encodeURIComponent(query)}`);
   }
 
   const insights = getInsights();
@@ -228,72 +204,6 @@ export default async function InsightsPage({
             note="We typically respond within one business day."
           />
         </Reveal>
-      </Section>
-    </>
-  );
-}
-
-/*
-  Search results view — the focused surface served for `/insights?q=…`. Kept
-  on-brand with the same masthead language and article rows as the hub, with a
-  clear self-contained heading (good for both readers and AI extraction) and a
-  graceful empty state that routes back into the archive.
-*/
-function InsightsSearch({
-  query,
-  results,
-}: {
-  query: string;
-  results: ReturnType<typeof getInsights>;
-}) {
-  return (
-    <>
-      <Section tone="paper" tight as="header">
-        <Reveal>
-          <Eyebrow>The Fortress Archive</Eyebrow>
-          <h1 className="display mt-5 t-h1 text-[var(--ink)]">
-            Search results for <em>&ldquo;{query}&rdquo;</em>
-          </h1>
-          <p className="lede mt-6 max-w-xl text-[var(--muted)]">
-            {results.length === 0
-              ? "No archive entries matched that search."
-              : `${results.length} ${
-                  results.length === 1 ? "entry" : "entries"
-                } in the archive match that search.`}
-          </p>
-          <div className="mt-7 flex flex-wrap items-center gap-x-7 gap-y-3">
-            <Link href="/insights" className="link-arrow">
-              Back to all insights
-              <span className="arrow" aria-hidden="true">
-                &rarr;
-              </span>
-            </Link>
-          </div>
-        </Reveal>
-      </Section>
-
-      <Section tone="paper">
-        {results.length > 0 ? (
-          <RevealGroup as="div">
-            {results.map((insight) => (
-              <ArticleListItem key={insight.slug} insight={insight} />
-            ))}
-          </RevealGroup>
-        ) : (
-          <Reveal>
-            <p className="max-w-xl text-[0.98rem] leading-8 text-[var(--muted)]">
-              Try a broader term, or browse the full record by year or subject
-              from the{" "}
-              <Link href="/insights#browse" className="link-arrow">
-                archive index
-                <span className="arrow" aria-hidden="true">
-                  &rarr;
-                </span>
-              </Link>
-              .
-            </p>
-          </Reveal>
-        )}
       </Section>
     </>
   );

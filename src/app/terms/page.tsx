@@ -1,35 +1,33 @@
 import type { Metadata } from "next";
-import { Section, SectionHeader, Eyebrow } from "@/components/ui";
+import { Section, SectionHeader } from "@/components/ui";
 import { Prose } from "@/components/prose";
-import { Reveal } from "@/components/reveal";
 
 /*
-  Terms of Use — Wave-0 legal/prose styling. DRAFT pending legal review
-  (visible notice + a real HTML comment in the markup).
+  Terms of Use — Wave-0 legal/prose styling.
 
   Scope note: written to also govern the forthcoming Fortress Client Portal
   (account registration, onboarding, secure document upload/exchange, viewing
   of tax information, secure messaging, and advisory coordination). The portal
   is a FUTURE product — portal provisions apply "when and as made available" /
   "if you are granted access," so nothing here represents a live, functioning
-  portal today. Drafted defensively for maximum protection of the firm:
+  portal today. Written defensively for maximum protection of the firm:
   acceptable-use, account/security, electronic-records, disclaimers,
   limitation of liability, indemnification, suspension, and governing law.
   Truthful: Fortress is a licensed CPA firm, not a law firm; the professional
   relationship is governed by a signed engagement letter, which controls.
-  Final language must be confirmed by counsel; bracketed items need input.
+  Bracketed items need input before search indexing.
 */
 
 export const metadata: Metadata = {
   title: "Terms of Use",
   description:
-    "Terms governing use of the Fortress Tax Advisors website and the forthcoming Fortress Client Portal, including acceptable use, accounts, disclaimers, and limitation of liability. Engagements are governed by a signed engagement letter. Draft pending legal review.",
+    "Terms governing use of the Fortress Tax Advisors website and the forthcoming Fortress Client Portal, including acceptable use, accounts, disclaimers, and limitation of liability. Engagements are governed by a signed engagement letter.",
   alternates: { canonical: "/terms" },
-  // Drafts should not yet be surfaced in search results.
+  // Keep legal pages out of search until final publishing inputs are confirmed.
   robots: { index: false, follow: true },
 };
 
-// The draft body. Rendered via <Prose>.
+// The terms body. Rendered via <Prose>.
 const TERMS_BODY = `These Terms of Use ("Terms") govern your access to and use of the website of Fortress Tax Advisors ("Fortress," "we," "us," or "our"), the Fortress Client Portal, and any related digital tools, content, and features (together, the "Services"). By accessing or using the Services, you agree to these Terms. If you do not agree, do not use the Services. If you use the Services on behalf of an entity, you represent that you are authorized to bind that entity to these Terms.
 
 The content on the Services is provided for general informational purposes only and does not by itself establish an advisory or client relationship. Formal services are governed by a signed engagement letter, which controls.
@@ -113,24 +111,9 @@ Questions about these Terms can be directed to Fortress Tax Advisors through our
 export default function TermsPage() {
   return (
     <>
-      {/* DRAFT — PENDING LEGAL REVIEW. Do not treat as final, binding terms. */}
-      {/* Also emit a real HTML comment into the served markup (the JSX comment
-          above is stripped by React and never reaches the page source). */}
-      <div
-        hidden
-        aria-hidden="true"
-        dangerouslySetInnerHTML={{
-          __html:
-            "<!-- DRAFT — PENDING LEGAL REVIEW: Terms of Use. Not reviewed by counsel; not final or binding. -->",
-        }}
-      />
       <Section tone="paper" as="div">
         <div className="measure">
           <SectionHeader as="h1" eyebrow="Legal" title="Terms of Use" opener />
-
-          <Reveal kind="rise">
-            <DraftNotice />
-          </Reveal>
 
           <p className="mt-8 text-sm text-[var(--faint)]">
             These terms govern your use of the Fortress Tax Advisors website and
@@ -150,25 +133,5 @@ export default function TermsPage() {
         </div>
       </Section>
     </>
-  );
-}
-
-/** The prominent "draft pending legal review" notice shared by legal pages. */
-function DraftNotice() {
-  return (
-    <div
-      role="note"
-      className="panel mt-10 border-l-2 border-[var(--accent)] p-6 md:p-7"
-    >
-      <Eyebrow className="text-[var(--accent-ink)]">
-        Draft — pending legal review
-      </Eyebrow>
-      <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-        This document is a working draft published for internal review. It has
-        not yet been reviewed or approved by counsel and should not be relied
-        upon as final, binding terms. Final language will be confirmed before
-        launch.
-      </p>
-    </div>
   );
 }

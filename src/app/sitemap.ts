@@ -72,6 +72,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     entry("/client-portal", 0.6, "monthly"),
     entry("/newsroom", 0.6, "monthly"),
     // Legal pages (/privacy, /terms) are omitted while they carry `noindex`
-    // as drafts pending legal review.
+    // pending final publishing inputs.
   ];
 }

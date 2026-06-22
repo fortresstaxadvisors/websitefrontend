@@ -1,31 +1,28 @@
 import type { Metadata } from "next";
-import { Section, SectionHeader, Eyebrow } from "@/components/ui";
+import { Section, SectionHeader } from "@/components/ui";
 import { Prose } from "@/components/prose";
-import { Reveal } from "@/components/reveal";
 
 /*
-  Privacy Policy — Wave-0 legal/prose styling. This is a DRAFT pending legal
-  review (visible notice below + a real HTML comment in the markup).
+  Privacy Policy — Wave-0 legal/prose styling.
 
   Scope note: this version is written to also cover the forthcoming Fortress
   Client Portal (account creation, onboarding, secure document upload and
   exchange, viewing of tax information, and advisory coordination). The portal
   is a FUTURE product — provisions about it are framed as applying "when and as
   the portal is made available" / "if you are granted access," so nothing here
-  claims a live, functioning portal today. Drafted defensively for maximum
-  protection of the firm; final language must be confirmed by counsel.
+  claims a live, functioning portal today.
 */
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "How Fortress Tax Advisors collects, uses, shares, and safeguards personal, financial, and tax information across our website and the forthcoming Fortress Client Portal. Draft pending legal review.",
+    "How Fortress Tax Advisors collects, uses, shares, and safeguards personal, financial, and tax information across our website and the forthcoming Fortress Client Portal.",
   alternates: { canonical: "/privacy" },
-  // Drafts should not yet be surfaced in search results.
+  // Keep legal pages out of search until final publishing inputs are confirmed.
   robots: { index: false, follow: true },
 };
 
-// The draft body. Rendered via <Prose> so it inherits the editorial body
+// The policy body. Rendered via <Prose> so it inherits the editorial body
 // treatment (measured column, tabular figures, section headings).
 const PRIVACY_BODY = `This Privacy Policy explains how Fortress Tax Advisors ("Fortress," "we," "us," or "our") collects, uses, discloses, retains, and safeguards information when you visit our website, contact us, engage us for professional services, or use the Fortress Client Portal and related digital tools (together, the "Services"). By using the Services, you acknowledge the practices described here.
 
@@ -95,17 +92,6 @@ Questions about this policy, or requests regarding your information, can be dire
 export default function PrivacyPage() {
   return (
     <>
-      {/* DRAFT — PENDING LEGAL REVIEW. Do not treat as a final, binding policy. */}
-      {/* Also emit a real HTML comment into the served markup (the JSX comment
-          above is stripped by React and never reaches the page source). */}
-      <div
-        hidden
-        aria-hidden="true"
-        dangerouslySetInnerHTML={{
-          __html:
-            "<!-- DRAFT — PENDING LEGAL REVIEW: Privacy Policy. Not reviewed by counsel; not final or binding. -->",
-        }}
-      />
       <Section tone="paper" as="div">
         <div className="measure">
           <SectionHeader
@@ -114,10 +100,6 @@ export default function PrivacyPage() {
             title="Privacy Policy"
             opener
           />
-
-          <Reveal kind="rise">
-            <DraftNotice />
-          </Reveal>
 
           <p className="mt-8 text-sm text-[var(--faint)]">
             This policy describes how Fortress Tax Advisors handles information
@@ -138,25 +120,5 @@ export default function PrivacyPage() {
         </div>
       </Section>
     </>
-  );
-}
-
-/** The prominent "draft pending legal review" notice shared by legal pages. */
-function DraftNotice() {
-  return (
-    <div
-      role="note"
-      className="panel mt-10 border-l-2 border-[var(--accent)] p-6 md:p-7"
-    >
-      <Eyebrow className="text-[var(--accent-ink)]">
-        Draft — pending legal review
-      </Eyebrow>
-      <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-        This document is a working draft published for internal review. It has
-        not yet been reviewed or approved by counsel and should not be relied
-        upon as a final, binding policy. Final language will be confirmed before
-        launch.
-      </p>
-    </div>
   );
 }

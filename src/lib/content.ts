@@ -52,7 +52,43 @@ export type InsightEntry = {
   sourceAnchor?: string;
 };
 
-const copyRoot = path.join(process.cwd(), "..", "04-copy");
+const inAppCopyRoot = path.join(process.cwd(), "content", "04-copy");
+const workspaceCopyRoot = path.join(process.cwd(), "..", "04-copy");
+const configuredCopyRoot = process.env.FORTRESS_COPY_ROOT
+  ? path.resolve(process.env.FORTRESS_COPY_ROOT)
+  : undefined;
+
+function hasRequiredContent(root: string | undefined) {
+  if (!root) return false;
+  return (
+    fs.existsSync(path.join(root, "core-site")) &&
+    fs.existsSync(path.join(root, "archive"))
+  );
+}
+
+function resolveCopyRoot() {
+  const fallbackRoots =
+    process.env.NODE_ENV === "production"
+      ? [inAppCopyRoot, workspaceCopyRoot]
+      : [workspaceCopyRoot, inAppCopyRoot];
+  const resolved = [configuredCopyRoot, ...fallbackRoots].find(hasRequiredContent);
+
+  if (!resolved) {
+    throw new Error(
+      [
+        "Fortress content root not found.",
+        `Checked: ${[configuredCopyRoot, ...fallbackRoots]
+          .filter(Boolean)
+          .join(", ")}`,
+        "Run `npm run sync-content` from site/ when the workspace 04-copy directory is available.",
+      ].join(" ")
+    );
+  }
+
+  return resolved;
+}
+
+const copyRoot = resolveCopyRoot();
 const coreSiteRoot = path.join(copyRoot, "core-site");
 const archiveRoot = path.join(copyRoot, "archive");
 

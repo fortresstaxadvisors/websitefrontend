@@ -99,6 +99,7 @@ export function InvoiceConsole() {
     ok: boolean;
     text: string;
     url?: string;
+    signingUrls?: string[];
   } | null>(null);
 
   const load = useCallback(async () => {
@@ -147,7 +148,14 @@ export function InvoiceConsole() {
       }
       setMessage({
         ok: true,
-        text: `Engagement ${data.invoiceNumber} was sent for signature. Square will issue the invoice only after every required signer completes it.`,
+        text: Array.isArray(data.signingUrls) && data.signingUrls.length > 0
+          ? `Engagement ${data.invoiceNumber} was created. Use the Sandbox signing links below; Square will issue the test invoice only after every required signer completes it.`
+          : `Engagement ${data.invoiceNumber} was sent for signature. Square will issue the invoice only after every required signer completes it.`,
+        signingUrls: Array.isArray(data.signingUrls)
+          ? data.signingUrls.filter((url: unknown): url is string =>
+              typeof url === "string" && url.startsWith("https://"),
+            )
+          : undefined,
       });
       form.reset();
       setLineItems("");
@@ -411,6 +419,21 @@ export function InvoiceConsole() {
                     Open invoice
                   </a>
                 </>
+              ) : null}
+              {message.signingUrls?.length ? (
+                <span className="mt-3 flex flex-wrap gap-2">
+                  {message.signingUrls.map((url, index) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex rounded-lg border border-emerald-800/25 bg-white px-3 py-2 font-semibold text-emerald-950 underline decoration-emerald-700/40 underline-offset-2"
+                    >
+                      Open {index === 0 ? "client" : "Fortress"} Sandbox signing
+                    </a>
+                  ))}
+                </span>
               ) : null}
             </div>
           ) : null}

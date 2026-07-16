@@ -14,16 +14,17 @@ fortress_deploy_billing_sandbox() (
   readonly SECRET_ID="fortress/website/billing-sandbox"
   readonly SQUARE_LOCATION_ID="LE0JJ26BSF0CX"
   readonly DOCUSEAL_TEMPLATE_ID="3"
-  readonly DOCUSEAL_HOST="sign.fortresstaxadvisors.com"
-  readonly DOCUSEAL_WEBHOOK_ID="1"
-  readonly SSH_KEY="/tmp/fortress-token.pem"
+  readonly TRANSPORT_QUEUE_NAME="fortress-docuseal-secret-transport"
   readonly SQUARE_VERSION="2026-05-20"
   readonly SQUARE_WEBHOOK_URL="${BASE_URL}/api/webhooks/square"
   readonly DOCUSEAL_WEBHOOK_URL="${BASE_URL}/api/webhooks/docuseal"
 
-  local temp_dir
+  local temp_dir queue_url
   temp_dir="$(mktemp -d)"
   cleanup() {
+    if [[ -n "${queue_url:-}" ]]; then
+      aws sqs delete-queue --region "$AWS_REGION" --queue-url "$queue_url" >/dev/null 2>&1 || true
+    fi
     rm -rf "$temp_dir"
   }
   trap cleanup EXIT
@@ -31,24 +32,76 @@ fortress_deploy_billing_sandbox() (
   command -v aws >/dev/null
   command -v curl >/dev/null
   command -v jq >/dev/null
-  command -v ssh >/dev/null
-  test -f "$SSH_KEY"
 
   echo "Verifying the authenticated AWS account and Sandbox branch..."
   aws sts get-caller-identity --region "$AWS_REGION" >/dev/null
   aws amplify get-branch --region "$AWS_REGION" --app-id "$APP_ID" --branch-name "$BRANCH" >/dev/null
 
-  local docuseal_hmac
-  docuseal_hmac="$(
-    ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
-      "ubuntu@${DOCUSEAL_HOST}" 'sudo bash -s' <<REMOTE
-set -euo pipefail
-cd /opt/fortress/docuseal
-docker compose exec -T docuseal /app/bin/rails runner \
-  'print WebhookUrl.find(${DOCUSEAL_WEBHOOK_ID}).hmac_secret' </dev/null
-REMOTE
+  echo "Opening an encrypted, five-minute one-time secret transport from the DocuSeal host..."
+  queue_url="$(
+    aws sqs create-queue \
+      --region "$AWS_REGION" \
+      --queue-name "$TRANSPORT_QUEUE_NAME" \
+      --attributes MessageRetentionPeriod=300,VisibilityTimeout=30,SqsManagedSseEnabled=true \
+      --query QueueUrl \
+      --output text
   )"
+  local account_id lightsail_role_arn queue_arn queue_policy message receipt_handle docuseal_hmac
+  account_id="$(aws sts get-caller-identity --query Account --output text)"
+  lightsail_role_arn="$(
+    aws iam get-role \
+      --role-name AmazonLightsailInstanceRole \
+      --query Role.Arn \
+      --output text
+  )"
+  queue_arn="arn:aws:sqs:${AWS_REGION}:${account_id}:${TRANSPORT_QUEUE_NAME}"
+  queue_policy="$(
+    jq -cn \
+      --arg queue "$queue_arn" \
+      --arg principal "$lightsail_role_arn" \
+      '{
+        Version:"2012-10-17",
+        Statement:[{
+          Sid:"OneTimeDocuSealSecretTransport",
+          Effect:"Allow",
+          Principal:{AWS:$principal},
+          Action:"sqs:SendMessage",
+          Resource:$queue
+        }]
+      }'
+  )"
+  jq -n --arg policy "$queue_policy" '{Policy:$policy}' >"${temp_dir}/queue-attributes.json"
+  aws sqs set-queue-attributes \
+    --region "$AWS_REGION" \
+    --queue-url "$queue_url" \
+    --attributes "file://${temp_dir}/queue-attributes.json" \
+    >/dev/null
+
+  message="null"
+  for _ in {1..6}; do
+    message="$(
+      aws sqs receive-message \
+        --region "$AWS_REGION" \
+        --queue-url "$queue_url" \
+        --wait-time-seconds 20 \
+        --max-number-of-messages 1 \
+        --query 'Messages[0]' \
+        --output json
+    )"
+    [[ "$message" != "null" ]] && break
+  done
+  [[ "$message" != "null" ]]
+  receipt_handle="$(jq -er '.ReceiptHandle' <<<"$message")"
+  docuseal_hmac="$(jq -er '.Body | fromjson | .DOCUSEAL_WEBHOOK_SECRET' <<<"$message")"
+  aws sqs delete-message \
+    --region "$AWS_REGION" \
+    --queue-url "$queue_url" \
+    --receipt-handle "$receipt_handle" \
+    >/dev/null
   [[ "$docuseal_hmac" == whsec_* ]]
+  unset message receipt_handle queue_policy lightsail_role_arn
+  aws sqs delete-queue --region "$AWS_REGION" --queue-url "$queue_url" >/dev/null
+  queue_url=""
 
   local environment_json update_input
   environment_json="$(
@@ -244,15 +297,6 @@ REMOTE
       "$SQUARE_WEBHOOK_URL"
   )" == "200" ]]
 
-  docuseal_hmac="$(
-    ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
-      "ubuntu@${DOCUSEAL_HOST}" 'sudo bash -s' <<REMOTE
-set -euo pipefail
-cd /opt/fortress/docuseal
-docker compose exec -T docuseal /app/bin/rails runner \
-  'print WebhookUrl.find(${DOCUSEAL_WEBHOOK_ID}).hmac_secret' </dev/null
-REMOTE
-  )"
   docuseal_body='{"event_type":"template.updated","data":{"id":3}}'
   docuseal_timestamp="$(date +%s)"
   docuseal_hmac_header="$(

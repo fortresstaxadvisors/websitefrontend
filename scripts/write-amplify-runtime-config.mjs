@@ -25,6 +25,7 @@ const optional = [
   "DOCUSEAL_FIRM_SIGNER_EMAIL",
   "DOCUSEAL_COMPLETED_BCC",
   "DOCUSEAL_REPLY_TO",
+  "DOCUSEAL_SANDBOX_SEND_EMAIL",
 ];
 
 function httpsUrl(value, key) {
@@ -62,6 +63,8 @@ export function buildRuntimeConfig(environment = process.env) {
   for (const key of ["SQUARE_SANDBOX_SKIP_ATTACHMENTS", "SQUARE_ENABLE_ACH"]) {
     if (values[key] && !new Set(["true", "false"]).has(values[key])) throw new Error(`${key} must be true or false`);
   }
+  if (values.DOCUSEAL_SANDBOX_SEND_EMAIL && !new Set(["true", "false"]).has(values.DOCUSEAL_SANDBOX_SEND_EMAIL)) throw new Error("DOCUSEAL_SANDBOX_SEND_EMAIL must be true or false");
+  if (values.FORTRESS_DEPLOYMENT_STAGE === "production" && values.DOCUSEAL_SANDBOX_SEND_EMAIL === "false") throw new Error("Production cannot disable DocuSeal signature-request email");
   if (values.FORTRESS_SECRET_CACHE_TTL_SECONDS && (!/^\d+$/.test(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) || Number(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) < 30 || Number(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) > 3600)) throw new Error("FORTRESS_SECRET_CACHE_TTL_SECONDS must be between 30 and 3600");
   if (Boolean(values.DOCUSEAL_FIRM_SIGNER_NAME) !== Boolean(values.DOCUSEAL_FIRM_SIGNER_EMAIL)) throw new Error("DocuSeal firm signer name and email must be set together");
   for (const [key, value] of Object.entries(values)) if (/[\r\n\0]/.test(value)) throw new Error(`${key} contains an invalid control character`);

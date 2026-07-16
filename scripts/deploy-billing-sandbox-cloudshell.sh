@@ -129,7 +129,8 @@ fortress_deploy_billing_sandbox() (
         DOCUSEAL_FIRM_ROLE: "Fortress",
         DOCUSEAL_FIRM_SIGNER_NAME: "Omer Muhammad",
         DOCUSEAL_FIRM_SIGNER_EMAIL: "omer@fortresstaxadvisors.com",
-        DOCUSEAL_REPLY_TO: "clientservice@fortresstaxadvisors.com"
+        DOCUSEAL_REPLY_TO: "clientservice@fortresstaxadvisors.com",
+        DOCUSEAL_SANDBOX_SEND_EMAIL: "false"
       }'
   )"
   update_input="$(

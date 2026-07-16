@@ -101,6 +101,7 @@ permissions.
 Set the values from `config/payments.env.example` on the intended branch. The
 required production values are:
 
+- `FORTRESS_DEPLOYMENT_STAGE=production`. Sandbox branches must use `sandbox`.
 - `FORTRESS_RUNTIME_SECRET_ID`: complete secret ARN or exact secret name.
 - `FORTRESS_AWS_REGION`: the secret's region.
 - `PAYMENT_BASE_URL`: canonical HTTPS website origin.
@@ -115,6 +116,11 @@ Set `SQUARE_ENABLE_ACH=true` only after the production seller/location supports
 bank-account payment. `SQUARE_SANDBOX_SKIP_ATTACHMENTS` must be `false` or absent
 in production. Set the firm signer name and email together when the template
 requires Fortress countersignature.
+
+The build fails closed if a sandbox branch targets the production website
+origin, if the secret identifier does not contain the selected deployment
+stage, or if the deployment stage and Square environment differ. Keep separate
+`billing-sandbox` and `billing-production` secrets and Compute roles.
 
 The build specification calls `scripts/write-amplify-runtime-config.mjs`, which
 validates these values and writes only its fixed non-secret allowlist. It ignores
@@ -144,6 +150,35 @@ run one low-value production payment/refund pilot, and enable CloudWatch alarms
 for middleware/API 5xx responses. Rotate a secret by writing a new Secrets
 Manager version; warm runtimes refresh within the configured 30–3600 second
 cache window (300 seconds by default).
+
+### Durability boundary
+
+Square invoice creation uses deterministic idempotency keys, and forwarded
+Square events carry both `Idempotency-Key` and `X-Fortress-Event-Id`. The
+receiver must persist and reject already-processed Square event IDs.
+
+The current low-cost deployment intentionally has no durable application queue
+or webhook receipt database. Amplify runtime memory is neither shared nor
+durable, so it must not be presented as deduplication. Before payment events
+trigger bookkeeping entries, refunds, client messages, or other non-idempotent
+side effects, add a small persistent receipt/queue layer (for example SQS plus a
+DynamoDB conditional-write receipt table) and give its worker, not the public
+webhook request, responsibility for those effects. Signature completion is
+currently synchronous and relies on DocuSeal retries plus Square idempotency.
+
+The private invoice console applies a 10-failure, 15-minute per-source
+authentication throttle and returns `429` with `Retry-After`. This is a
+best-effort runtime control, not a distributed edge rate limit: separate
+Amplify instances do not share counters. Basic Auth also does not provide MFA.
+For broader staff access, replace it with an identity-aware login (for example
+Cognito) or add an edge/WAF rule after reviewing the added monthly cost.
+
+Billing workflow metadata is now versioned AES-256-GCM ciphertext with a 45-day
+maximum age. Previously issued signed-only tokens remain readable only so
+in-flight agreements can finish; create all new submissions after this release
+to prevent client PII from being visible in DocuSeal metadata. During workflow
+key rotation, move the old value to `BILLING_WORKFLOW_PREVIOUS_SECRET`, install a
+new `BILLING_WORKFLOW_SECRET`, and remove the previous value after 45 days.
 
 ## References
 

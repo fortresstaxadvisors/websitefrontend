@@ -14,6 +14,7 @@ const requiredKeys = [
 type RequiredSecretKey = (typeof requiredKeys)[number];
 export type RuntimeSecrets = Record<RequiredSecretKey, string> & {
   PAYMENT_EVENT_FORWARD_TOKEN?: string;
+  BILLING_WORKFLOW_PREVIOUS_SECRET?: string;
 };
 
 let cached: { expiresAt: number; value: Promise<RuntimeSecrets> } | undefined;
@@ -32,6 +33,10 @@ function validate(input: unknown): RuntimeSecrets {
   if (typeof source.PAYMENT_EVENT_FORWARD_TOKEN === "string" && source.PAYMENT_EVENT_FORWARD_TOKEN) {
     output.PAYMENT_EVENT_FORWARD_TOKEN = source.PAYMENT_EVENT_FORWARD_TOKEN;
   }
+  if (typeof source.BILLING_WORKFLOW_PREVIOUS_SECRET === "string" && source.BILLING_WORKFLOW_PREVIOUS_SECRET) {
+    if (source.BILLING_WORKFLOW_PREVIOUS_SECRET.length < 32) throw new Error("BILLING_WORKFLOW_PREVIOUS_SECRET must be at least 32 characters");
+    output.BILLING_WORKFLOW_PREVIOUS_SECRET = source.BILLING_WORKFLOW_PREVIOUS_SECRET;
+  }
   return output;
 }
 
@@ -39,7 +44,7 @@ function localSecrets() {
   if (process.env.NODE_ENV === "production" || process.env.FORTRESS_ALLOW_LOCAL_ENV_SECRETS !== "true") {
     throw new Error("FORTRESS_RUNTIME_SECRET_ID is not configured");
   }
-  return validate(Object.fromEntries([...requiredKeys, "PAYMENT_EVENT_FORWARD_TOKEN"].map((key) => [key, process.env[key]])));
+  return validate(Object.fromEntries([...requiredKeys, "PAYMENT_EVENT_FORWARD_TOKEN", "BILLING_WORKFLOW_PREVIOUS_SECRET"].map((key) => [key, process.env[key]])));
 }
 
 async function load(): Promise<RuntimeSecrets> {

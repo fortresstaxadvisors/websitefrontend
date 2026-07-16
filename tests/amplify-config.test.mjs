@@ -4,7 +4,8 @@ import { buildRuntimeConfig } from "../scripts/write-amplify-runtime-config.mjs"
 
 function environment(overrides = {}) {
   return {
-    FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-test",
+    FORTRESS_DEPLOYMENT_STAGE: "sandbox",
+    FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-sandbox",
     FORTRESS_AWS_REGION: "us-east-1",
     PAYMENT_BASE_URL: "https://test.fortresstaxadvisors.com",
     SQUARE_ENVIRONMENT: "sandbox",
@@ -33,4 +34,25 @@ test("requires the exact Square webhook URL", () => {
 
 test("requires firm signer name and email together", () => {
   assert.throws(() => buildRuntimeConfig(environment({ DOCUSEAL_FIRM_SIGNER_NAME: "Fortress" })), /must be set together/);
+});
+
+test("keeps sandbox resources away from the production origin and secret", () => {
+  assert.throws(() => buildRuntimeConfig(environment({ PAYMENT_BASE_URL: "https://fortresstaxadvisors.com", SQUARE_WEBHOOK_NOTIFICATION_URL: "https://fortresstaxadvisors.com/api/webhooks/square" })), /Sandbox PAYMENT_BASE_URL/);
+  assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-production" })), /identify the deployment stage/);
+});
+
+test("requires production settings to move together", () => {
+  assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_DEPLOYMENT_STAGE: "production", FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-production" })), /must match/);
+  assert.doesNotThrow(() => buildRuntimeConfig(environment({
+    FORTRESS_DEPLOYMENT_STAGE: "production",
+    FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-production",
+    PAYMENT_BASE_URL: "https://fortresstaxadvisors.com",
+    SQUARE_ENVIRONMENT: "production",
+    SQUARE_WEBHOOK_NOTIFICATION_URL: "https://fortresstaxadvisors.com/api/webhooks/square",
+    SQUARE_SANDBOX_SKIP_ATTACHMENTS: "false",
+  })));
+});
+
+test("prevents a forwarding loop", () => {
+  assert.throws(() => buildRuntimeConfig(environment({ PAYMENT_EVENT_FORWARD_URL: "https://test.fortresstaxadvisors.com/api/webhooks/square" })), /cannot point/);
 });

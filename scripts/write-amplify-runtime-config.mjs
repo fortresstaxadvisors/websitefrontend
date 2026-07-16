@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const required = [
+  "FORTRESS_DEPLOYMENT_STAGE",
   "FORTRESS_RUNTIME_SECRET_ID",
   "FORTRESS_AWS_REGION",
   "PAYMENT_BASE_URL",
@@ -42,10 +43,22 @@ export function buildRuntimeConfig(environment = process.env) {
   for (const key of optional) if (environment[key]) values[key] = environment[key];
 
   if (!/^[a-z]{2}(?:-gov)?-[a-z]+-\d$/.test(values.FORTRESS_AWS_REGION)) throw new Error("FORTRESS_AWS_REGION is invalid");
+  if (!new Set(["sandbox", "production"]).has(values.FORTRESS_DEPLOYMENT_STAGE)) throw new Error("FORTRESS_DEPLOYMENT_STAGE must be sandbox or production");
   if (!new Set(["sandbox", "production"]).has(values.SQUARE_ENVIRONMENT)) throw new Error("SQUARE_ENVIRONMENT must be sandbox or production");
   if (!/^\d+$/.test(values.DOCUSEAL_ENGAGEMENT_TEMPLATE_ID) || Number(values.DOCUSEAL_ENGAGEMENT_TEMPLATE_ID) < 1) throw new Error("DOCUSEAL_ENGAGEMENT_TEMPLATE_ID must be a positive integer");
   for (const key of ["PAYMENT_BASE_URL", "SQUARE_WEBHOOK_NOTIFICATION_URL", "DOCUSEAL_BASE_URL"]) httpsUrl(values[key], key);
+  if (values.PAYMENT_EVENT_FORWARD_URL) httpsUrl(values.PAYMENT_EVENT_FORWARD_URL, "PAYMENT_EVENT_FORWARD_URL");
   if (values.SQUARE_WEBHOOK_NOTIFICATION_URL !== `${new URL(values.PAYMENT_BASE_URL).origin}/api/webhooks/square`) throw new Error("Square webhook URL must exactly match PAYMENT_BASE_URL origin plus /api/webhooks/square");
+  if (values.PAYMENT_EVENT_FORWARD_URL && new URL(values.PAYMENT_EVENT_FORWARD_URL).href === new URL(values.SQUARE_WEBHOOK_NOTIFICATION_URL).href) throw new Error("PAYMENT_EVENT_FORWARD_URL cannot point to the Square webhook");
+  if (!new URL(values.DOCUSEAL_BASE_URL).pathname.replace(/\/$/, "").endsWith("/api")) throw new Error("DOCUSEAL_BASE_URL must end in /api");
+  if (!values.FORTRESS_RUNTIME_SECRET_ID.toLowerCase().includes(values.FORTRESS_DEPLOYMENT_STAGE)) throw new Error("FORTRESS_RUNTIME_SECRET_ID must identify the deployment stage");
+  if (values.FORTRESS_DEPLOYMENT_STAGE !== values.SQUARE_ENVIRONMENT) throw new Error("Deployment stage and Square environment must match");
+  if (values.FORTRESS_DEPLOYMENT_STAGE === "production") {
+    if (new URL(values.PAYMENT_BASE_URL).origin !== "https://fortresstaxadvisors.com") throw new Error("Production PAYMENT_BASE_URL must be the canonical Fortress origin");
+    if (values.SQUARE_SANDBOX_SKIP_ATTACHMENTS === "true") throw new Error("Production cannot skip signed-agreement attachments");
+  } else if (new URL(values.PAYMENT_BASE_URL).origin === "https://fortresstaxadvisors.com") {
+    throw new Error("Sandbox PAYMENT_BASE_URL cannot use the production origin");
+  }
   for (const key of ["SQUARE_SANDBOX_SKIP_ATTACHMENTS", "SQUARE_ENABLE_ACH"]) {
     if (values[key] && !new Set(["true", "false"]).has(values[key])) throw new Error(`${key} must be true or false`);
   }

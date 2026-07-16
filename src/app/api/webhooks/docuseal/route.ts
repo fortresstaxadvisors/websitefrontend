@@ -3,15 +3,23 @@ import { readBillingWorkflowToken } from "@/lib/billing-workflow-token";
 import { docusealFetch } from "@/lib/docuseal";
 import { createSquareInvoice } from "@/lib/invoicing";
 import { getRuntimeSecrets } from "@/lib/runtime-secrets";
+import { readWebhookBody, WebhookBodyTooLargeError } from "@/lib/webhook-body";
 
-async function verify(header: string, raw: string) { const { DOCUSEAL_WEBHOOK_SECRET: secret } = await getRuntimeSecrets(); const [timestamp, supplied] = header.split(".", 2); if (!timestamp || !supplied || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false; const expected = createHmac("sha256", secret).update(`${timestamp}.${raw}`).digest("hex"); const a = Buffer.from(supplied), b = Buffer.from(expected); return a.length === b.length && timingSafeEqual(a, b); }
+async function verify(header: string, raw: string) { const { DOCUSEAL_WEBHOOK_SECRET: secret } = await getRuntimeSecrets(); const [timestamp, supplied] = header.split(".", 2); if (!timestamp || !supplied || !/^\d+$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false; const expected = createHmac("sha256", secret).update(`${timestamp}.${raw}`).digest("hex"); const a = Buffer.from(supplied), b = Buffer.from(expected); return a.length === b.length && timingSafeEqual(a, b); }
 
 export async function POST(request: Request) {
-  const raw = await request.text();
+  let raw: string;
+  try { raw = await readWebhookBody(request); }
+  catch (cause) {
+    if (cause instanceof WebhookBodyTooLargeError) return new Response(cause.message, { status: 413 });
+    return new Response("Could not read event body", { status: 400 });
+  }
   try {
     if (!await verify(request.headers.get("x-docuseal-signature") || "", raw)) return new Response("Invalid signature", { status: 403 });
   } catch { return new Response("Webhook verification is unavailable", { status: 503 }); }
-  const event = JSON.parse(raw) as { event_type?: string; data?: { id?: number } };
+  let event: { event_type?: string; data?: { id?: number } };
+  try { event = JSON.parse(raw); }
+  catch { return new Response("Invalid event body", { status: 400 }); }
   // Return a non-2xx response on automation failure so DocuSeal retries the
   // completed event. Square idempotency keys make each retry safe.
   if (event.event_type === "submission.completed" && event.data?.id) {

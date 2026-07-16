@@ -21,7 +21,7 @@ import { NextResponse } from "next/server";
     3. Consider light anti-abuse (rate limit / honeypot / hCaptcha) before
        this is publicly reachable.
 
-  Route handlers are not cached by default (Next 16), which is correct for a
+  Route handlers are not cached by default (Next 15), which is correct for a
   POST inbox. See node_modules/next/dist/docs/.../15-route-handlers.md.
   ============================================================================
 */

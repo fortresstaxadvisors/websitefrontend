@@ -1,0 +1,8 @@
+import type { Metadata } from "next";
+import { Section } from "@/components/ui/section";
+
+export const metadata: Metadata = { title: "Secure Payment", description: "Payment guidance for Fortress Tax Advisors clients.", robots: { index: false, follow: false } };
+
+export default function PaymentsPage() {
+  return <><Section tone="slate" tight><div className="max-w-3xl"><p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[var(--accent-bright)]">Secure client payment</p><h1 className="display mt-4 t-h1">Every payment begins with an approved engagement.</h1><p className="mt-5 max-w-2xl text-[var(--on-dark-muted)]">For your protection, Fortress does not accept open-ended card payments or allow clients to enter an arbitrary amount.</p></div></Section><Section tone="paper"><div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2"><div className="rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface)] p-7"><h2 className="display text-2xl">Pay online</h2><p className="mt-3 text-[var(--muted)]">Use the secure payment button in the itemized Square invoice sent to your verified email address. Depending on invoice settings, card and bank-account payment may be available. The invoice is issued only after all required engagement signatures are complete.</p></div><div className="rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface)] p-7"><h2 className="display text-2xl">Pay by check</h2><p className="mt-3 text-[var(--muted)]">Follow the remittance instructions on your invoice and include the invoice number. Contact your Fortress advisor if you need the invoice resent or believe an amount is incorrect.</p></div></div></Section></>;
+}

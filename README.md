@@ -1,5 +1,10 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+Production billing and Amplify SSR secret setup are documented in
+[`AMPLIFY_DEPLOYMENT.md`](./AMPLIFY_DEPLOYMENT.md). Production credentials must
+come from Secrets Manager through the Amplify SSR Compute role and must never be
+written into Amplify build artifacts.
+
 ## Getting Started
 
 First, run the development server:

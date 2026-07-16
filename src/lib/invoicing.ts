@@ -1,0 +1,82 @@
+import "server-only";
+import { createHash } from "node:crypto";
+import { squareFetch, squareLocationId } from "@/lib/square";
+
+export type InvoiceInput = {
+  workflowId: string;
+  givenName: string; familyName: string; email: string; phone: string; company: string;
+  invoiceNumber: string; title: string; description: string; dueDate: string;
+  depositPercent: number; depositDueDate: string;
+  lineItems: { name: string; quantity: "1"; base_price_money: { amount: number; currency: "USD" } }[];
+};
+
+type SquareCustomer = { id: string };
+type SquareInvoice = { id: string; version: number; invoice_number?: string; status?: string; public_url?: string };
+
+const text = (form: FormData, key: string) => { const value = form.get(key); return typeof value === "string" ? value.trim() : ""; };
+const validDate = (input: string) => /^\d{4}-\d{2}-\d{2}$/.test(input) && !Number.isNaN(Date.parse(`${input}T12:00:00Z`));
+function normalizePhone(input: string) { if (!input) return ""; const digits = input.replace(/\D/g, ""); if (digits.length === 10) return `+1${digits}`; if (digits.length >= 9 && digits.length <= 16) return `+${digits}`; throw new Error("Phone must include a valid country code or a 10-digit US number"); }
+
+export function parseInvoiceForm(form: FormData): InvoiceInput {
+  const givenName = text(form, "givenName"), familyName = text(form, "familyName"), email = text(form, "email").toLowerCase(), phone = text(form, "phone"), company = text(form, "company");
+  const invoiceNumber = text(form, "invoiceNumber"), title = text(form, "title"), description = text(form, "description"), dueDate = text(form, "dueDate"), depositDueDate = text(form, "depositDueDate");
+  const depositPercent = Number(text(form, "depositPercent") || "0");
+  if (!givenName || !familyName || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || !invoiceNumber || !title || description.length < 20 || !validDate(dueDate) || text(form, "confirmed") !== "yes") throw new Error("Complete and confirm every required engagement field");
+  if (!Number.isFinite(depositPercent) || depositPercent < 0 || depositPercent > 90 || (depositPercent > 0 && (!validDate(depositDueDate) || depositDueDate > dueDate))) throw new Error("Deposit settings are invalid");
+  const lineItems = text(form, "lineItems").split("\n").filter(Boolean).map((line) => { const split = line.lastIndexOf("|"); const name = line.slice(0, split).trim(); const amount = Math.round(Number(line.slice(split + 1).trim()) * 100); if (split < 1 || !name || !Number.isSafeInteger(amount) || amount < 1) throw new Error(`Invalid line item: ${line}`); return { name, quantity: "1" as const, base_price_money: { amount, currency: "USD" as const } }; });
+  if (!lineItems.length || lineItems.length > 50) throw new Error("Add between 1 and 50 line items");
+  // The invoice number is the business-level uniqueness boundary. Using a
+  // deterministic workflow ID makes duplicate signature callbacks and even
+  // duplicate engagement submissions converge on one Square invoice.
+  const workflowId = createHash("sha256").update(`fortress:${invoiceNumber.toLowerCase()}`).digest("hex").slice(0, 32);
+  return { workflowId, givenName, familyName, email, phone: normalizePhone(phone), company, invoiceNumber, title, description, dueDate, depositPercent, depositDueDate, lineItems };
+}
+
+const key = (workflowId: string, stage: string) => createHash("sha256").update(`${workflowId}:${stage}`).digest("hex").slice(0, 45);
+
+export async function createSquareInvoice(input: InvoiceInput, signedAgreement: Blob, auditLog?: Blob) {
+  let draftId: string | undefined;
+  try {
+    const customerId = await findOrCreateCustomer(input);
+    const locationId = squareLocationId();
+    const orderData = await squareFetch<{ order: { id: string } }>("/v2/orders", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "order"), order: { location_id: locationId, customer_id: customerId, reference_id: input.invoiceNumber.slice(0, 40), source: { name: "Fortress Signed Engagement" }, line_items: input.lineItems } }) });
+    const reminders = [{ relative_scheduled_days: -7, message: `Reminder: ${input.invoiceNumber} is due in seven days.` }, { relative_scheduled_days: 0, message: `Invoice ${input.invoiceNumber} is due today.` }, { relative_scheduled_days: 7, message: `Invoice ${input.invoiceNumber} is seven days past due. Contact Fortress if payment is already in transit by check.` }];
+    const paymentRequests = input.depositPercent > 0 ? [{ request_type: "DEPOSIT", due_date: input.depositDueDate, percentage_requested: String(input.depositPercent), reminders: reminders.slice(0, 2) }, { request_type: "BALANCE", due_date: input.dueDate, reminders }] : [{ request_type: "BALANCE", due_date: input.dueDate, reminders }];
+    const draft = await squareFetch<{ invoice: SquareInvoice }>("/v2/invoices", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "invoice"), invoice: { order_id: orderData.order.id, primary_recipient: { customer_id: customerId }, delivery_method: "EMAIL", payment_requests: paymentRequests, accepted_payment_methods: { card: true, square_gift_card: false, bank_account: process.env.SQUARE_ENABLE_ACH === "true", buy_now_pay_later: false, cash_app_pay: false }, invoice_number: input.invoiceNumber, title: input.title, description: `${input.description}\n\nSecure online payment is available through this invoice. Check payments must include ${input.invoiceNumber}. Refund and cancellation terms are governed by the attached signed engagement agreement.`, store_payment_method_enabled: false } }) });
+    draftId = draft.invoice.id;
+    const existing = await squareFetch<{ invoice: SquareInvoice }>(`/v2/invoices/${encodeURIComponent(draftId)}`);
+    if (existing.invoice.status && existing.invoice.status !== "DRAFT") {
+      return { invoiceId: existing.invoice.id, invoiceNumber: existing.invoice.invoice_number, publicUrl: existing.invoice.public_url, status: existing.invoice.status };
+    }
+    const skipSandboxAttachment = process.env.SQUARE_ENVIRONMENT !== "production" && process.env.SQUARE_SANDBOX_SKIP_ATTACHMENTS === "true";
+    if (!skipSandboxAttachment) {
+      if (signedAgreement.size + (auditLog?.size || 0) > 25 * 1024 * 1024) throw new Error("The completed agreement and audit record exceed Square's 25 MB attachment limit");
+      await attach(draftId, input, signedAgreement, "signed-agreement", "Completed engagement agreement", `${input.invoiceNumber}-signed-engagement.pdf`);
+      if (auditLog) await attach(draftId, input, auditLog, "signature-audit", "Electronic signature audit log", `${input.invoiceNumber}-signature-audit.pdf`);
+    }
+    // Attachment creation increments the Square invoice version. Publishing
+    // must use the current version, not the version returned with the draft.
+    const current = await squareFetch<{ invoice: SquareInvoice }>(`/v2/invoices/${encodeURIComponent(draftId)}`);
+    const published = await squareFetch<{ invoice: SquareInvoice }>(`/v2/invoices/${encodeURIComponent(draftId)}/publish`, { method: "POST", body: JSON.stringify({ version: current.invoice.version, idempotency_key: key(input.workflowId, "publish") }) });
+    return { invoiceId: published.invoice.id, invoiceNumber: published.invoice.invoice_number, publicUrl: published.invoice.public_url, status: published.invoice.status };
+  } catch (cause) {
+    throw new Error(`${cause instanceof Error ? cause.message : "Invoice creation failed"}${draftId ? ` Draft invoice ${draftId} was not published; review it in Square.` : ""}`);
+  }
+}
+
+async function findOrCreateCustomer(input: InvoiceInput) {
+  const found = await squareFetch<{ customers?: SquareCustomer[] }>("/v2/customers/search", { method: "POST", body: JSON.stringify({ query: { filter: { email_address: { exact: input.email } } }, limit: 2 }) });
+  if ((found.customers?.length || 0) > 1) throw new Error("Multiple Square customers use this email; merge them in Square first");
+  if (found.customers?.[0]) return found.customers[0].id;
+  const created = await squareFetch<{ customer: SquareCustomer }>("/v2/customers", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "customer"), given_name: input.givenName, family_name: input.familyName, email_address: input.email, ...(input.phone ? { phone_number: input.phone } : {}), ...(input.company ? { company_name: input.company } : {}) }) });
+  return created.customer.id;
+}
+
+export function invoiceTotal(input: InvoiceInput) { return input.lineItems.reduce((sum, item) => sum + item.base_price_money.amount, 0); }
+
+async function attach(invoiceId: string, input: InvoiceInput, file: Blob, stage: string, description: string, filename: string) {
+  const form = new FormData();
+  form.append("request", JSON.stringify({ idempotency_key: key(input.workflowId, stage), description }));
+  form.append("file", file, filename);
+  await squareFetch(`/v2/invoices/${encodeURIComponent(invoiceId)}/attachments`, { method: "POST", body: form });
+}

@@ -133,12 +133,13 @@ export function InvoiceConsole() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setSubmitting(true);
     setMessage(null);
     try {
       const response = await fetch("/api/internal/engagements", {
         method: "POST",
-        body: new FormData(event.currentTarget),
+        body: new FormData(form),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -148,7 +149,7 @@ export function InvoiceConsole() {
         ok: true,
         text: `Engagement ${data.invoiceNumber} was sent for signature. Square will issue the invoice only after every required signer completes it.`,
       });
-      event.currentTarget.reset();
+      form.reset();
       setLineItems("");
       setDepositPercent("0");
       await load();

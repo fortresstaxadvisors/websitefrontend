@@ -8,8 +8,10 @@ type Submission = { id: number; status?: string; name?: string; completed_at?: s
 type CreatedSubmitter = { id: number; submission_id: number; status?: string; slug?: string };
 
 async function recoverDocuSealWorkflow(workflowId: string) {
-  const data = await docusealFetch<CreatedSubmitter[] | { data?: CreatedSubmitter[] }>(`/submitters?external_id=${encodeURIComponent(workflowId)}&limit=10`);
-  const submitters = Array.isArray(data) ? data : data.data || [];
+  const responses = await Promise.all([workflowId, `${workflowId}:firm`].map((externalId) =>
+    docusealFetch<CreatedSubmitter[] | { data?: CreatedSubmitter[] }>(`/submitters?external_id=${encodeURIComponent(externalId)}&limit=10`),
+  ));
+  const submitters = responses.flatMap((data) => Array.isArray(data) ? data : data.data || []);
   const submissionIds = [...new Set(submitters.map((item) => item.submission_id).filter(Number.isSafeInteger))];
   if (submissionIds.length > 1) throw new Error("Multiple DocuSeal submissions use this workflow ID; review them before continuing");
   const origin = new URL(process.env.DOCUSEAL_BASE_URL || "https://sign.fortresstaxadvisors.com/api").origin;

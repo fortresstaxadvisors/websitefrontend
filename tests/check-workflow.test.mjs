@@ -50,11 +50,15 @@ test("rejects skipped, reversed, and terminal-state transitions", () => {
     ["RECEIVED", "CLEAR"],
     ["DEPOSITED", "RECEIVE"],
     ["CLEARED_AWAITING_SQUARE", "DEPOSIT"],
-    ["RETURNED", "RECEIVE"],
-    ["RECONCILED", "RETURN"],
   ]) {
     assert.throws(() => workflow.validateCheckTransition(state, action), /must be received|cannot move/);
   }
+});
+
+test("supports sequential installments, replacement checks, and post-reconciliation returns", () => {
+  assert.deepEqual(workflow.validateCheckTransition("RETURNED", "RECEIVE"), { state: "RECEIVED", idempotent: false });
+  assert.deepEqual(workflow.validateCheckTransition("RECONCILED", "RECEIVE"), { state: "RECEIVED", idempotent: false });
+  assert.deepEqual(workflow.validateCheckTransition("RECONCILED", "RETURN"), { state: "RETURNED", idempotent: false });
 });
 
 test("stores only the final four reference characters", () => {

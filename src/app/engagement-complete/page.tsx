@@ -19,10 +19,10 @@ export default function EngagementCompletePage() {
             ✓
           </div>
           <p className="eyebrow eyebrow--bare mt-6">Signature received</p>
-          <h1 className="display mt-4 t-h1">Your engagement is underway.</h1>
+          <h1 className="display mt-4 t-h1">Your signature was received.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-[var(--on-dark-muted)]">
-            Your signed agreement has been recorded. No payment was taken on
-            this page.
+            No payment was taken on this page. If a Fortress signature is still
+            required, the completed agreement and invoice will follow after it.
           </p>
         </div>
       </Section>

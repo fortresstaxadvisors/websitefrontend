@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { InvoiceActions, PaymentRiskPanel } from "@/components/payments/payment-operations";
 
 type InvoiceSummary = {
@@ -29,7 +29,7 @@ type EngagementSummary = {
 };
 
 const fieldClass =
-  "mt-2 w-full rounded-xl border border-[var(--line-strong)] bg-white px-4 py-3 text-[0.95rem] text-[var(--ink)] shadow-[0_1px_0_rgba(255,255,255,0.75)_inset] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--faint)] focus:border-[var(--accent-ink)] focus:shadow-[0_0_0_3px_rgba(154,122,67,0.12)]";
+  "mt-2 w-full rounded-xl border border-[var(--line-strong)] bg-white px-4 py-3 text-base text-[var(--ink)] shadow-[0_1px_0_rgba(255,255,255,0.75)_inset] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--faint)] focus:border-[var(--accent-ink)] focus:shadow-[0_0_0_3px_rgba(154,122,67,0.12)] sm:text-[0.95rem]";
 
 const labelClass = "text-sm font-semibold text-[var(--ink)]";
 
@@ -56,6 +56,12 @@ function formatDate(value?: string) {
 
 function humanizeStatus(status: string) {
   return status.replaceAll("_", " ").toLowerCase();
+}
+
+function localToday() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }
 
 function statusStyle(status: string) {
@@ -93,6 +99,16 @@ function parseDraftTotal(value: string) {
   }, 0);
 }
 
+function validDraftLines(value: string) {
+  const lines = value.split("\n").filter((line) => line.trim());
+  return lines.length > 0 && lines.every((line) => {
+    const separator = line.lastIndexOf("|");
+    return separator > 0
+      && Boolean(line.slice(0, separator).trim())
+      && /^\d{1,7}(?:\.\d{1,2})?$/.test(line.slice(separator + 1).trim());
+  });
+}
+
 export function InvoiceConsole() {
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
   const [engagements, setEngagements] = useState<EngagementSummary[]>([]);
@@ -101,14 +117,18 @@ export function InvoiceConsole() {
   const [lineItems, setLineItems] = useState("");
   const [depositPercent, setDepositPercent] = useState("0");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [recordQuery, setRecordQuery] = useState("");
+  const [recordsWarning, setRecordsWarning] = useState("");
   const [message, setMessage] = useState<{
     ok: boolean;
     text: string;
     url?: string;
     signingUrls?: string[];
   } | null>(null);
+  const submitLock = useRef(false);
+  const today = localToday();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserveMessage = false) => {
     setLoading(true);
     try {
       const [invoiceResponse, engagementResponse] = await Promise.all([
@@ -121,9 +141,10 @@ export function InvoiceConsole() {
       if (!engagementResponse.ok) throw new Error(engagementData.error);
       setInvoices(invoiceData.invoices);
       setEngagements(engagementData.engagements);
+      setRecordsWarning([invoiceData.warning, engagementData.warning].filter(Boolean).join(" "));
       setRefreshKey((value) => value + 1);
     } catch (error) {
-      setMessage({
+      if (!preserveMessage) setMessage({
         ok: false,
         text:
           error instanceof Error
@@ -141,6 +162,8 @@ export function InvoiceConsole() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitLock.current) return;
+    submitLock.current = true;
     const form = event.currentTarget;
     setSubmitting(true);
     setMessage(null);
@@ -155,7 +178,9 @@ export function InvoiceConsole() {
       }
       setMessage({
         ok: true,
-        text: Array.isArray(data.signingUrls) && data.signingUrls.length > 0
+        text: data.existing
+          ? `Engagement ${data.invoiceNumber} already exists; no duplicate was sent. Review the existing DocuSeal record.`
+          : Array.isArray(data.signingUrls) && data.signingUrls.length > 0
           ? `Engagement ${data.invoiceNumber} was created. Use the Sandbox signing links below; Square will issue the test invoice only after every required signer completes it.`
           : `Engagement ${data.invoiceNumber} was sent for signature. Square will issue the invoice only after every required signer completes it.`,
         signingUrls: Array.isArray(data.signingUrls)
@@ -167,7 +192,7 @@ export function InvoiceConsole() {
       form.reset();
       setLineItems("");
       setDepositPercent("0");
-      await load();
+      await load(true);
     } catch (error) {
       setMessage({
         ok: false,
@@ -177,11 +202,13 @@ export function InvoiceConsole() {
             : "Engagement creation failed",
       });
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
 
   const draftTotal = parseDraftTotal(lineItems);
+  const draftLinesValid = validDraftLines(lineItems);
   const completedEngagements = engagements.filter((engagement) =>
     ["COMPLETED", "COMPLETE"].includes(engagement.status.toUpperCase()),
   ).length;
@@ -189,15 +216,19 @@ export function InvoiceConsole() {
     (invoice) => invoice.status.toUpperCase() === "PAID",
   ).length;
   const openInvoices = invoices.filter((invoice) =>
-    ["UNPAID", "SCHEDULED", "PARTIALLY_PAID", "OVERDUE"].includes(
+    ["UNPAID", "SCHEDULED", "PARTIALLY_PAID", "PAYMENT_PENDING", "OVERDUE"].includes(
       invoice.status.toUpperCase(),
     ),
   ).length;
+  const normalizedQuery = recordQuery.trim().toLocaleLowerCase();
+  const visibleEngagements = normalizedQuery ? engagements.filter((item) => `${item.name} ${item.email} ${item.id}`.toLocaleLowerCase().includes(normalizedQuery)) : engagements;
+  const visibleInvoices = normalizedQuery ? invoices.filter((item) => `${item.number} ${item.title} ${item.email} ${item.status}`.toLocaleLowerCase().includes(normalizedQuery)) : invoices;
 
   return (
     <div className="grid gap-10 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)] xl:gap-12">
       <form
         onSubmit={submit}
+        autoComplete="off"
         className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-raise)]"
       >
         <div className="border-b border-[var(--line)] px-6 py-6 md:px-8">
@@ -251,11 +282,24 @@ export function InvoiceConsole() {
               name="email"
               required
               type="email"
-              autoComplete="email"
+              autoComplete="off"
               className={fieldClass}
             />
             <span className="mt-1.5 block text-xs font-normal text-[var(--faint)]">
               DocuSeal and Square use this address.
+            </span>
+          </label>
+          <label className={labelClass}>
+            Confirm email *
+            <input
+              name="confirmEmail"
+              required
+              type="email"
+              autoComplete="off"
+              className={fieldClass}
+            />
+            <span className="mt-1.5 block text-xs font-normal text-[var(--faint)]">
+              Re-enter the client address; agreements contain sensitive information.
             </span>
           </label>
           <label className={labelClass}>
@@ -303,7 +347,7 @@ export function InvoiceConsole() {
           </label>
           <label className={labelClass}>
             Final due date *
-            <input name="dueDate" required type="date" className={fieldClass} />
+            <input name="dueDate" required type="date" min={today} className={fieldClass} />
           </label>
           <label className={`${labelClass} md:col-span-2`}>
             Engagement title *
@@ -352,6 +396,7 @@ export function InvoiceConsole() {
             <p className="mt-1 text-xs text-[var(--faint)]">
               Confirm this amount against your approved scope before sending.
             </p>
+            {lineItems && !draftLinesValid ? <p role="alert" className="mt-2 text-xs font-semibold text-red-800">Every nonblank row must use: description | amount, with no dollar signs/commas and no more than two decimal places.</p> : null}
           </div>
           <label className={labelClass}>
             Deposit percentage
@@ -371,6 +416,7 @@ export function InvoiceConsole() {
             <input
               name="depositDueDate"
               type="date"
+              min={today}
               required={Number(depositPercent) > 0}
               disabled={Number(depositPercent) <= 0}
               className={`${fieldClass} disabled:cursor-not-allowed disabled:bg-[var(--paper-deep)] disabled:text-[var(--faint)]`}
@@ -445,7 +491,7 @@ export function InvoiceConsole() {
             </div>
           ) : null}
           <button
-            disabled={submitting}
+            disabled={submitting || !draftLinesValid}
             className="btn btn-primary mt-6 w-full justify-center disabled:cursor-wait disabled:opacity-55 sm:w-auto"
           >
             {submitting
@@ -501,13 +547,15 @@ export function InvoiceConsole() {
             </div>
           ))}
         </dl>
+        <label className="mt-5 block text-sm font-semibold">Search workflows<input className={fieldClass} type="search" value={recordQuery} onChange={(event) => setRecordQuery(event.target.value)} placeholder="Invoice number, client email, title, status, or DocuSeal ID" /></label>
+        {recordsWarning ? <p role="status" className="mt-3 rounded-lg border border-amber-700/20 bg-amber-50 p-3 text-sm text-amber-950">{recordsWarning}</p> : null}
 
         <div className="mt-8 flex items-center justify-between border-b border-[var(--line)] pb-3">
           <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent-ink)]">
             Engagements
           </h3>
           <span className="text-xs text-[var(--faint)]">
-            {engagements.length} recent
+            {visibleEngagements.length} of {engagements.length}
           </span>
         </div>
         <div className="mt-3 space-y-3">
@@ -515,8 +563,8 @@ export function InvoiceConsole() {
             <p className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
               Loading DocuSeal engagements…
             </p>
-          ) : engagements.length ? (
-            engagements.map((engagement) => (
+          ) : visibleEngagements.length ? (
+            visibleEngagements.map((engagement) => (
               <article
                 key={engagement.id}
                 className="rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-raise)]"
@@ -542,10 +590,9 @@ export function InvoiceConsole() {
             ))
           ) : (
             <div className="rounded-[var(--radius)] border border-dashed border-[var(--line-strong)] p-6">
-              <h4 className="font-semibold">No engagements yet</h4>
+              <h4 className="font-semibold">{normalizedQuery ? "No matching engagements" : "No engagements yet"}</h4>
               <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                The first agreement you send will appear here with its live
-                signature status.
+                {normalizedQuery ? "Try a different invoice number, email, title, status, or DocuSeal ID." : "The first agreement you send will appear here with its live signature status."}
               </p>
             </div>
           )}
@@ -556,7 +603,7 @@ export function InvoiceConsole() {
             Square invoices
           </h3>
           <span className="text-xs text-[var(--faint)]">
-            {invoices.length} recent
+            {visibleInvoices.length} of {invoices.length}
           </span>
         </div>
         <div className="mt-3 space-y-3">
@@ -564,8 +611,8 @@ export function InvoiceConsole() {
             <p className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
               Loading Square invoices…
             </p>
-          ) : invoices.length ? (
-            invoices.map((invoice) => (
+          ) : visibleInvoices.length ? (
+            visibleInvoices.map((invoice) => (
               <article
                 key={invoice.id}
                 className="rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-raise)]"
@@ -615,20 +662,20 @@ export function InvoiceConsole() {
                   <span>Check by staff reconciliation</span>
                   {invoice.completedAmount > 0 ? <span>{formatMoney(invoice.completedAmount)} completed</span> : null}
                 </div>
+                {invoice.status.toUpperCase() === "PAYMENT_PENDING" ? <p className="mt-3 rounded-lg border border-amber-700/20 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Bank payment is pending. Do not treat this invoice as paid or release final work until Square reports the payment completed.</p> : null}
                 <InvoiceActions invoice={invoice} onChanged={load} />
               </article>
             ))
           ) : (
             <div className="rounded-[var(--radius)] border border-dashed border-[var(--line-strong)] p-6">
-              <h4 className="font-semibold">No Square invoices yet</h4>
+              <h4 className="font-semibold">{normalizedQuery ? "No matching Square invoices" : "No Square invoices yet"}</h4>
               <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                Invoices appear only after every required signature is
-                completed.
+                {normalizedQuery ? "Try a different invoice number, email, title, or status." : "Invoices appear only after every required signature is completed."}
               </p>
             </div>
           )}
         </div>
-        <PaymentRiskPanel refreshKey={refreshKey} />
+        <PaymentRiskPanel refreshKey={refreshKey} invoices={invoices} />
       </section>
     </div>
   );

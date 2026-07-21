@@ -50,7 +50,14 @@ test("requires production settings to move together", () => {
     SQUARE_ENVIRONMENT: "production",
     SQUARE_WEBHOOK_NOTIFICATION_URL: "https://fortresstaxadvisors.com/api/webhooks/square",
     SQUARE_SANDBOX_SKIP_ATTACHMENTS: "false",
+    FORTRESS_BILLING_OPERATIONS_TABLE: "fortress-billing-production-operations",
+    PAYMENT_EVENT_FORWARD_URL: "https://alerts.fortresstaxadvisors.com/square",
   })));
+});
+
+test("requires complete check instructions when checks are enabled", () => {
+  assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_CHECK_PAYEE: "Fortress Tax Advisors" })), /payee and remittance address/);
+  assert.doesNotThrow(() => buildRuntimeConfig(environment({ FORTRESS_CHECK_PAYEE: "Fortress Tax Advisors", FORTRESS_CHECK_REMITTANCE_ADDRESS: "Verified test address" })));
 });
 
 test("prevents a forwarding loop", () => {

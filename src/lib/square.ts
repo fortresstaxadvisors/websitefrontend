@@ -18,6 +18,7 @@ export async function squareFetch<T>(path: string, init: RequestInit = {}): Prom
   const response = await fetch(`${base}${path}`, {
     ...init,
     cache: "no-store",
+    signal: init.signal || AbortSignal.timeout(20_000),
     headers: {
       Authorization: `Bearer ${token}`,
       "Square-Version": SQUARE_VERSION,

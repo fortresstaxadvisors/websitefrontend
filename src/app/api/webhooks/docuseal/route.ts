@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { readBillingWorkflowToken } from "@/lib/billing-workflow-token";
+import { completeEngagementWorkflow, getEngagementWorkflow } from "@/lib/billing-operations-store";
 import { docusealFetch } from "@/lib/docuseal";
 import { createSquareInvoice } from "@/lib/invoicing";
 import { getRuntimeSecrets } from "@/lib/runtime-secrets";
@@ -35,6 +36,14 @@ async function complete(submissionId: number) {
     const token = submission.submitters?.map((s) => s.metadata?.fortress_workflow).find(Boolean);
     if (!token) throw new Error("Completed submission has no Fortress billing workflow");
     const input = await readBillingWorkflowToken(token);
+    const workflow = await getEngagementWorkflow(input.invoiceNumber);
+    if (!workflow) {
+      if (process.env.FORTRESS_DEPLOYMENT_STAGE === "production") throw new Error("Completed submission has no canonical engagement reservation");
+    } else if (workflow.status === "CREATED") {
+      if (workflow.submissionId !== submissionId) throw new Error("Completed submission is not the canonical engagement for this invoice");
+    } else {
+      await completeEngagementWorkflow(workflow, submissionId);
+    }
   let agreement: Blob;
   let auditLog: Blob | undefined;
   if (submission.combined_document_url) {
@@ -50,4 +59,39 @@ async function complete(submissionId: number) {
   console.info("[docuseal] completed engagement created Square invoice", JSON.stringify({ submissionId, workflowId: input.workflowId, invoiceNumber: input.invoiceNumber }));
 }
 
-async function downloadPdf(url: string, label: string) { const response = await fetch(url, { cache: "no-store" }); if (!response.ok) throw new Error(`Could not download ${label}`); const blob = await response.blob(); if (blob.type && blob.type !== "application/pdf") throw new Error(`${label} was not returned as a PDF`); return blob; }
+async function downloadPdf(url: string, label: string) {
+  const allowedOrigin = new URL(process.env.DOCUSEAL_BASE_URL || "").origin;
+  let current = new URL(url);
+  let response: Response | undefined;
+  for (let redirects = 0; redirects <= 3; redirects += 1) {
+    if (current.protocol !== "https:" || current.origin !== allowedOrigin) throw new Error(`${label} URL is not from the configured DocuSeal origin`);
+    response = await fetch(current, { cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(30_000) });
+    if (![301, 302, 303, 307, 308].includes(response.status)) break;
+    const location = response.headers.get("location");
+    if (!location || redirects === 3) throw new Error(`${label} has an invalid redirect`);
+    current = new URL(location, current);
+  }
+  if (!response?.ok || !response.body) throw new Error(`Could not download ${label}`);
+  const maximum = 25 * 1024 * 1024;
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maximum) throw new Error(`${label} exceeds the 25 MB limit`);
+  const chunks: Uint8Array[] = [];
+  const reader = response.body.getReader();
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maximum) {
+      await reader.cancel();
+      throw new Error(`${label} exceeds the 25 MB limit`);
+    }
+    chunks.push(value);
+  }
+  if (total < 5) throw new Error(`${label} has an invalid size`);
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  if (Buffer.from(bytes.subarray(0, 5)).toString("ascii") !== "%PDF-") throw new Error(`${label} is not a PDF`);
+  return new Blob([bytes], { type: "application/pdf" });
+}

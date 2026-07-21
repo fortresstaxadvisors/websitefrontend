@@ -21,6 +21,8 @@ const optional = [
   "SQUARE_ENABLE_ACH",
   "FORTRESS_REFUNDS_ENABLED",
   "FORTRESS_BILLING_OPERATIONS_TABLE",
+  "FORTRESS_CHECK_PAYEE",
+  "FORTRESS_CHECK_REMITTANCE_ADDRESS",
   "PAYMENT_EVENT_FORWARD_URL",
   "DOCUSEAL_FIRM_ROLE",
   "DOCUSEAL_FIRM_SIGNER_NAME",
@@ -59,6 +61,8 @@ export function buildRuntimeConfig(environment = process.env) {
   if (values.FORTRESS_DEPLOYMENT_STAGE === "production") {
     if (new URL(values.PAYMENT_BASE_URL).origin !== "https://fortresstaxadvisors.com") throw new Error("Production PAYMENT_BASE_URL must be the canonical Fortress origin");
     if (values.SQUARE_SANDBOX_SKIP_ATTACHMENTS === "true") throw new Error("Production cannot skip signed-agreement attachments");
+    if (!values.FORTRESS_BILLING_OPERATIONS_TABLE) throw new Error("Production requires a durable billing operations table");
+    if (!values.PAYMENT_EVENT_FORWARD_URL) throw new Error("Production requires a payment-event alert/worker endpoint");
   } else if (new URL(values.PAYMENT_BASE_URL).origin === "https://fortresstaxadvisors.com") {
     throw new Error("Sandbox PAYMENT_BASE_URL cannot use the production origin");
   }
@@ -70,6 +74,7 @@ export function buildRuntimeConfig(environment = process.env) {
   if (values.FORTRESS_DEPLOYMENT_STAGE === "production" && values.DOCUSEAL_SANDBOX_SEND_EMAIL === "false") throw new Error("Production cannot disable DocuSeal signature-request email");
   if (values.FORTRESS_SECRET_CACHE_TTL_SECONDS && (!/^\d+$/.test(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) || Number(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) < 30 || Number(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) > 3600)) throw new Error("FORTRESS_SECRET_CACHE_TTL_SECONDS must be between 30 and 3600");
   if (Boolean(values.DOCUSEAL_FIRM_SIGNER_NAME) !== Boolean(values.DOCUSEAL_FIRM_SIGNER_EMAIL)) throw new Error("DocuSeal firm signer name and email must be set together");
+  if (Boolean(values.FORTRESS_CHECK_PAYEE) !== Boolean(values.FORTRESS_CHECK_REMITTANCE_ADDRESS)) throw new Error("Check payee and remittance address must be set together");
   for (const [key, value] of Object.entries(values)) if (/[\r\n\0]/.test(value)) throw new Error(`${key} contains an invalid control character`);
   return Object.entries(values).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join("\n") + "\n";
 }

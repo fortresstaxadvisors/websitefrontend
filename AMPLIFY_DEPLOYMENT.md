@@ -164,14 +164,15 @@ Square invoice creation uses deterministic idempotency keys, and forwarded
 Square events carry both `Idempotency-Key` and `X-Fortress-Event-Id`. The
 receiver must persist and reject already-processed Square event IDs.
 
-The current low-cost deployment intentionally has no durable application queue
-or webhook receipt database. Amplify runtime memory is neither shared nor
-durable, so it must not be presented as deduplication. Before payment events
-trigger bookkeeping entries, refunds, client messages, or other non-idempotent
-side effects, add a small persistent receipt/queue layer (for example SQS plus a
-DynamoDB conditional-write receipt table) and give its worker, not the public
-webhook request, responsibility for those effects. Signature completion is
-currently synchronous and relies on DocuSeal retries plus Square idempotency.
+The low-cost deployment now stores Square event IDs and check/engagement
+workflow records with conditional writes in the branch-specific DynamoDB table.
+This supplies durable receipt deduplication and invoice-number reservations, but
+it is not a durable work queue. Before payment events trigger bookkeeping
+entries, refunds, client messages, or other non-idempotent side effects, add an
+SQS/outbox worker with retry, DLQ, alarms, and replay tooling. Signature
+completion remains synchronous and relies on DocuSeal retries plus Square
+idempotency. Production configuration therefore requires a reviewed
+`PAYMENT_EVENT_FORWARD_URL` alert/worker endpoint.
 
 The private invoice console applies a 10-failure, 15-minute per-source
 authentication throttle and returns `429` with `Retry-After`. This is a

@@ -9,6 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function PaymentsPage() {
+  const checkPayee = process.env.FORTRESS_CHECK_PAYEE?.trim();
+  const checkAddress = process.env.FORTRESS_CHECK_REMITTANCE_ADDRESS?.trim();
+  const checksEnabled = Boolean(checkPayee && checkAddress);
   return (
     <>
       <Section tone="slate" tight>
@@ -53,6 +56,7 @@ export default function PaymentsPage() {
                   Keep Square&apos;s emailed receipt for your records.
                 </li>
               </ul>
+              <p className="mt-5 rounded-lg border border-amber-700/20 bg-amber-50 p-3 text-xs leading-5 text-amber-950">Bank payments can remain pending before Square completes them. Do not submit a second card, bank, or check payment while one is pending; contact Fortress if the status is unclear.</p>
             </article>
             <article className="rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--surface)] p-7 shadow-[var(--shadow-raise)] md:p-8">
               <span className="font-mono text-xs text-[var(--accent-ink)]">
@@ -60,14 +64,14 @@ export default function PaymentsPage() {
               </span>
               <h2 className="display mt-4 text-3xl">Pay by check</h2>
               <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-                Follow the remittance instructions provided on your invoice.
-                Include the invoice number so the payment can be matched to the
-                correct engagement.
+                {checksEnabled
+                  ? `Make checks payable to ${checkPayee} and mail them to ${checkAddress}. Include the invoice number so the payment can be matched to the correct engagement.`
+                  : "Check payment is not currently enabled through this page. Do not mail a check without written remittance instructions from Fortress; contact client service first."}
               </p>
               <ul className="mt-6 space-y-3 border-t border-[var(--line)] pt-5 text-sm text-[var(--muted)]">
                 <li className="flex gap-3">
                   <span className="text-[var(--accent-ink)]">✓</span>
-                  Make the check payable exactly as instructed.
+                  {checksEnabled ? `Make the check payable to ${checkPayee}.` : "Request verified payee and mailing instructions."}
                 </li>
                 <li className="flex gap-3">
                   <span className="text-[var(--accent-ink)]">✓</span>
@@ -78,6 +82,7 @@ export default function PaymentsPage() {
                   Allow time for delivery and account reconciliation.
                 </li>
               </ul>
+              <p className="mt-5 rounded-lg border border-amber-700/20 bg-amber-50 p-3 text-xs leading-5 text-amber-950">A mailed or deposited check does not make an invoice paid. Fortress records payment only after bank clearance and Square reconciliation. Do not also pay online while a check is in transit without contacting us.</p>
             </article>
           </div>
 

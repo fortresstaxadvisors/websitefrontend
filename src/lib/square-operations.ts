@@ -87,13 +87,21 @@ export async function issueFullInvoiceRefund(input: {
   }));
   const existing = existingRefunds.find((refund) => refund.reason?.startsWith(`${input.invoiceNumber} [${reference}]`));
   if (existing && preview.paymentId === payment.id) return summarizeRefund(existing);
+  const disputeResult = await allSquarePages<{
+    disputed_payment?: { payment_id?: string };
+  }>(`/v2/disputes?location_id=${encodeURIComponent(squareLocationId())}&states=INQUIRY_EVIDENCE_REQUIRED&states=INQUIRY_PROCESSING&states=EVIDENCE_REQUIRED&states=PROCESSING`, "disputes", 5000);
+  if (disputeResult.truncated) throw new Error("Square dispute review was truncated; refund manually after reviewing disputes");
+  if (disputeResult.items.some((dispute) => dispute.disputed_payment?.payment_id === payment.id)) {
+    throw new Error("This payment has a Square dispute and cannot be automatically refunded; review the dispute first");
+  }
   if (invoice.status !== "PAID") throw new Error("Square invoice is not eligible for an automated refund");
   const paid = payment.amount_money?.amount || 0;
   const refunded = payment.refunded_money?.amount || 0;
   const refundable = paid - refunded;
   if (!Number.isSafeInteger(refundable) || refundable <= 0) throw new Error("This payment has no refundable balance");
   const currency = payment.amount_money?.currency || "USD";
-  const version = payment.version_token || payment.updated_at || "";
+  const version = payment.version_token || "";
+  if (!version) throw new Error("Square payment version is unavailable; refund manually in Square");
   if (
     preview.paymentId !== payment.id
     || preview.amount !== refundable
@@ -114,11 +122,29 @@ export async function issueFullInvoiceRefund(input: {
     body: JSON.stringify({
       idempotency_key: idempotencyKey,
       payment_id: payment.id,
+      payment_version_token: version,
       amount_money: { amount: refundable, currency },
       reason: description,
     }),
   });
   return summarizeRefund(data.refund);
+}
+
+async function allSquarePages<T>(path: string, key: "refunds" | "disputes" | "payments", maximum = 500) {
+  const items: T[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const separator = path.includes("?") ? "&" : "?";
+    const data = await squareFetch<Record<string, unknown> & { cursor?: string }>(`${path}${cursor ? `${separator}cursor=${encodeURIComponent(cursor)}` : ""}`);
+    const page = data[key];
+    if (Array.isArray(page)) items.push(...page as T[]);
+    const nextCursor = data.cursor;
+    if (nextCursor && seenCursors.has(nextCursor)) throw new Error(`Square returned a repeated ${key} cursor`);
+    if (nextCursor) seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  } while (cursor && items.length < maximum);
+  return { items, truncated: Boolean(cursor) };
 }
 
 export async function previewFullInvoiceRefund(input: { invoiceId: string; invoiceNumber: string }) {
@@ -131,7 +157,7 @@ export async function previewFullInvoiceRefund(input: { invoiceId: string; invoi
   const amount = paid - refunded;
   if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error("This payment has no refundable balance");
   const currency = payment.amount_money?.currency || "USD";
-  const version = payment.version_token || payment.updated_at || "";
+  const version = payment.version_token || "";
   if (!version) throw new Error("Square payment version is unavailable; refund manually in Square");
   const { BILLING_WORKFLOW_SECRET } = await getRuntimeSecrets();
   const expiresAt = Date.now() + 10 * 60 * 1000;
@@ -175,20 +201,33 @@ function summarizeRefund(refund: {
 
 export async function listPaymentOperations() {
   const locationId = squareLocationId();
-  const [refundData, disputeData, paymentData] = await Promise.all([
-    squareFetch<{ refunds?: Array<{
+  type Refund = {
       id: string; payment_id: string; status?: string; amount_money?: Money;
       reason?: string; created_at?: string; updated_at?: string;
-    }> }>(`/v2/refunds?location_id=${encodeURIComponent(locationId)}&limit=20&sort_order=DESC`),
-    squareFetch<{ disputes?: Array<{
+  };
+  type Dispute = {
       dispute_id?: string; id?: string; state?: string; reason?: string;
       amount_money?: Money; disputed_payment?: { payment_id?: string }; due_at?: string; created_at?: string; updated_at?: string;
-    }> }>(`/v2/disputes?location_id=${encodeURIComponent(locationId)}`),
-    squareFetch<{ payments?: Payment[] }>(`/v2/payments?location_id=${encodeURIComponent(locationId)}&limit=20&sort_order=DESC`),
+  };
+  const results = await Promise.allSettled([
+    allSquarePages<Refund>(`/v2/refunds?location_id=${encodeURIComponent(locationId)}&limit=100&sort_order=DESC`, "refunds"),
+    allSquarePages<Dispute>(`/v2/disputes?location_id=${encodeURIComponent(locationId)}`, "disputes"),
+    allSquarePages<Payment>(`/v2/payments?location_id=${encodeURIComponent(locationId)}&limit=100&sort_order=DESC`, "payments"),
   ]);
+  const [refundResult, disputeResult, paymentResult] = results;
+  const warnings = results.flatMap((result, index) => result.status === "rejected"
+    ? [`${["Refunds", "Disputes", "Payments"][index]} could not be loaded: ${result.reason instanceof Error ? result.reason.message : "unknown error"}`]
+    : []);
+  const refunds = refundResult.status === "fulfilled" ? refundResult.value.items : [];
+  const disputes = disputeResult.status === "fulfilled" ? disputeResult.value.items : [];
+  const payments = paymentResult.status === "fulfilled" ? paymentResult.value.items : [];
+  if (refundResult.status === "fulfilled" && refundResult.value.truncated) warnings.push("Refund history is truncated at 500 records");
+  if (disputeResult.status === "fulfilled" && disputeResult.value.truncated) warnings.push("Dispute history is truncated at 500 records");
+  if (paymentResult.status === "fulfilled" && paymentResult.value.truncated) warnings.push("Payment history is truncated at 500 records");
   return {
-    refunds: (refundData.refunds || []).map(summarizeRefund),
-    disputes: (disputeData.disputes || []).map((dispute) => ({
+    warnings,
+    refunds: refunds.map(summarizeRefund),
+    disputes: disputes.map((dispute) => ({
       id: dispute.dispute_id || dispute.id || "unknown",
       paymentId: dispute.disputed_payment?.payment_id || "",
       state: dispute.state || "UNKNOWN",
@@ -199,7 +238,7 @@ export async function listPaymentOperations() {
       createdAt: dispute.created_at,
       updatedAt: dispute.updated_at,
     })),
-    payments: (paymentData.payments || []).map((payment) => ({
+    payments: payments.map((payment) => ({
       id: payment.id,
       orderId: payment.order_id || "",
       status: payment.status || "UNKNOWN",

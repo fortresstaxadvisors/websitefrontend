@@ -17,8 +17,18 @@ type SquareInvoice = {
 export async function GET() {
   try {
     const location = squareLocationId();
-    const data = await squareFetch<{ invoices?: SquareInvoice[] }>(`/v2/invoices?location_id=${encodeURIComponent(location)}&limit=50`);
-    return Response.json({ invoices: (data.invoices || []).map(summary) });
+    const invoices: SquareInvoice[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const data = await squareFetch<{ invoices?: SquareInvoice[]; cursor?: string }>(`/v2/invoices?location_id=${encodeURIComponent(location)}&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+      invoices.push(...(data.invoices || []));
+      const nextCursor = data.cursor;
+      if (nextCursor && seenCursors.has(nextCursor)) throw new Error("Square returned a repeated invoice cursor");
+      if (nextCursor) seenCursors.add(nextCursor);
+      cursor = nextCursor;
+    } while (cursor && invoices.length < 500);
+    return Response.json({ invoices: invoices.map(summary), warning: cursor ? "Square invoice history is truncated at 500 records" : undefined });
   } catch (cause) { return Response.json({ error: cause instanceof Error ? cause.message : "Could not load invoices" }, { status: 502 }); }
 }
 

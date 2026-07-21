@@ -42,7 +42,7 @@ class RequestError extends Error {
   }
 }
 
-const OPEN_INVOICE_STATES = new Set(["UNPAID", "PARTIALLY_PAID", "OVERDUE"]);
+const OPEN_INVOICE_STATES = new Set(["SCHEDULED", "UNPAID", "PARTIALLY_PAID", "OVERDUE"]);
 
 function cleanIdentifier(value: unknown, label: string, maxLength = 255) {
   if (typeof value !== "string") throw new RequestError(`${label} is required`, 400);
@@ -59,6 +59,13 @@ function cleanNote(value: unknown) {
   const result = value.trim();
   if (result.length > 500 || /[\0]/.test(result)) throw new RequestError("Note must be 500 characters or fewer", 400);
   return result || undefined;
+}
+
+function checkAmount(value: unknown, outstanding: number) {
+  if (!Number.isSafeInteger(value) || Number(value) <= 0 || Number(value) > outstanding) {
+    throw new RequestError("Check amount must be a positive amount no greater than Square's current balance due", 422);
+  }
+  return Number(value);
 }
 
 function response(record: BillingCheckRecord | null, status = 200) {
@@ -125,7 +132,7 @@ function validateAuthoritativeState(
   if (action === "RETURN") return;
   requireOpenInvoice(invoice, order);
   const outstanding = outstandingAmount(invoice);
-  if (existing && outstanding !== existing.amount) {
+  if (existing && action !== "RECEIVE" && outstanding !== existing.amount) {
     throw new RequestError("Square's current outstanding amount no longer matches the recorded check", 409);
   }
 }
@@ -210,6 +217,9 @@ export async function POST(request: Request) {
         try { masked = maskCheckReference(body.checkReference); }
         catch (cause) { throw new RequestError(cause instanceof Error ? cause.message : "Check reference is invalid", 400); }
         if (masked !== existing!.maskedReference) throw new RequestError("Check reference does not match the stored record", 409);
+        if (body.checkAmountCents !== undefined && body.checkAmountCents !== existing!.amount) {
+          throw new RequestError("Check amount does not match the stored record", 409);
+        }
       }
       return response(existing);
     }
@@ -217,9 +227,12 @@ export async function POST(request: Request) {
     const { invoice, order } = await authoritativeInvoice(invoiceId);
     requireExactInvoiceNumber(invoice, invoiceNumber);
     validateAuthoritativeState(action, invoice, order, existing);
+    const receivedAmount = action === "RECEIVE"
+      ? checkAmount(body.checkAmountCents, outstandingAmount(invoice))
+      : undefined;
     const squarePaymentId = action === "RECONCILE"
       ? cleanIdentifier(body.squarePaymentId, "Square payment ID", 192)
-      : existing?.squarePaymentId;
+      : action === "RECEIVE" ? undefined : existing?.squarePaymentId;
     if (action === "RECONCILE") await requireMatchingClearedCheck(order, existing, squarePaymentId!);
 
     let maskedReference = existing?.maskedReference;
@@ -235,12 +248,15 @@ export async function POST(request: Request) {
       state: targetStateForAction(action),
       at: now,
       ...(note ? { note } : {}),
+      amount: receivedAmount ?? existing!.amount,
+      maskedReference,
+      ...(squarePaymentId ? { squarePaymentId } : {}),
     };
     const next: BillingCheckRecord = {
       itemType: "CHECK",
       invoiceId,
       invoiceNumber,
-      amount: existing?.amount || outstandingAmount(invoice),
+      amount: receivedAmount ?? existing!.amount,
       maskedReference,
       ...(squarePaymentId ? { squarePaymentId } : {}),
       state: transition.state,

@@ -10,20 +10,22 @@ export type InvoiceInput = {
   lineItems: { name: string; quantity: "1"; base_price_money: { amount: number; currency: "USD" } }[];
 };
 
-type SquareCustomer = { id: string };
+type SquareCustomer = { id: string; given_name?: string; family_name?: string; company_name?: string; email_address?: string };
 type SquareInvoice = { id: string; version: number; invoice_number?: string; status?: string; public_url?: string };
 
 const text = (form: FormData, key: string) => { const value = form.get(key); return typeof value === "string" ? value.trim() : ""; };
 const validDate = (input: string) => /^\d{4}-\d{2}-\d{2}$/.test(input) && !Number.isNaN(Date.parse(`${input}T12:00:00Z`));
+const fortressToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 function normalizePhone(input: string) { if (!input) return ""; const digits = input.replace(/\D/g, ""); if (digits.length === 10) return `+1${digits}`; if (digits.length >= 9 && digits.length <= 16) return `+${digits}`; throw new Error("Phone must include a valid country code or a 10-digit US number"); }
 
 export function parseInvoiceForm(form: FormData): InvoiceInput {
-  const givenName = text(form, "givenName"), familyName = text(form, "familyName"), email = text(form, "email").toLowerCase(), phone = text(form, "phone"), company = text(form, "company");
+  const givenName = text(form, "givenName"), familyName = text(form, "familyName"), email = text(form, "email").toLowerCase(), confirmEmail = text(form, "confirmEmail").toLowerCase(), phone = text(form, "phone"), company = text(form, "company");
   const invoiceNumber = text(form, "invoiceNumber"), title = text(form, "title"), description = text(form, "description"), dueDate = text(form, "dueDate"), depositDueDate = text(form, "depositDueDate");
   const depositPercent = Number(text(form, "depositPercent") || "0");
-  if (!givenName || !familyName || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || !invoiceNumber || !title || description.length < 20 || !validDate(dueDate) || text(form, "confirmed") !== "yes") throw new Error("Complete and confirm every required engagement field");
-  if (!Number.isFinite(depositPercent) || depositPercent < 0 || depositPercent > 90 || (depositPercent > 0 && (!validDate(depositDueDate) || depositDueDate > dueDate))) throw new Error("Deposit settings are invalid");
-  const lineItems = text(form, "lineItems").split("\n").filter(Boolean).map((line) => { const split = line.lastIndexOf("|"); const name = line.slice(0, split).trim(); const amount = Math.round(Number(line.slice(split + 1).trim()) * 100); if (split < 1 || !name || !Number.isSafeInteger(amount) || amount < 1) throw new Error(`Invalid line item: ${line}`); return { name, quantity: "1" as const, base_price_money: { amount, currency: "USD" as const } }; });
+  const today = fortressToday();
+  if (!givenName || givenName.length > 80 || !familyName || familyName.length > 80 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email !== confirmEmail || !/^[A-Za-z0-9._-]{4,64}$/.test(invoiceNumber) || !title || title.length > 128 || description.length < 20 || description.length > 1500 || company.length > 191 || !validDate(dueDate) || dueDate < today || text(form, "confirmed") !== "yes") throw new Error("Complete every required field, confirm the client email, and use a current or future due date");
+  if (!Number.isFinite(depositPercent) || depositPercent < 0 || depositPercent > 90 || (depositPercent > 0 && (!validDate(depositDueDate) || depositDueDate < today || depositDueDate > dueDate))) throw new Error("Deposit settings are invalid");
+  const lineItems = text(form, "lineItems").split("\n").filter((line) => line.trim()).map((line) => { const split = line.lastIndexOf("|"); const name = line.slice(0, split).trim(); const rawAmount = line.slice(split + 1).trim(); if (split < 1 || !name || name.length > 255 || !/^\d{1,7}(?:\.\d{1,2})?$/.test(rawAmount)) throw new Error(`Invalid line item: ${line}`); const amount = Math.round(Number(rawAmount) * 100); if (!Number.isSafeInteger(amount) || amount < 1) throw new Error(`Invalid line item: ${line}`); return { name, quantity: "1" as const, base_price_money: { amount, currency: "USD" as const } }; });
   if (!lineItems.length || lineItems.length > 50) throw new Error("Add between 1 and 50 line items");
   // The invoice number is the business-level uniqueness boundary. Using a
   // deterministic workflow ID makes duplicate signature callbacks and even
@@ -42,7 +44,12 @@ export async function createSquareInvoice(input: InvoiceInput, signedAgreement: 
     const orderData = await squareFetch<{ order: { id: string } }>("/v2/orders", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "order"), order: { location_id: locationId, customer_id: customerId, reference_id: input.invoiceNumber.slice(0, 40), source: { name: "Fortress Signed Engagement" }, line_items: input.lineItems } }) });
     const reminders = [{ relative_scheduled_days: -7, message: `Reminder: ${input.invoiceNumber} is due in seven days.` }, { relative_scheduled_days: 0, message: `Invoice ${input.invoiceNumber} is due today.` }, { relative_scheduled_days: 7, message: `Invoice ${input.invoiceNumber} is seven days past due. Contact Fortress if payment is already in transit by check.` }];
     const paymentRequests = input.depositPercent > 0 ? [{ request_type: "DEPOSIT", due_date: input.depositDueDate, percentage_requested: String(input.depositPercent), reminders: reminders.slice(0, 2) }, { request_type: "BALANCE", due_date: input.dueDate, reminders }] : [{ request_type: "BALANCE", due_date: input.dueDate, reminders }];
-    const draft = await squareFetch<{ invoice: SquareInvoice }>("/v2/invoices", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "invoice"), invoice: { order_id: orderData.order.id, primary_recipient: { customer_id: customerId }, delivery_method: "EMAIL", payment_requests: paymentRequests, accepted_payment_methods: { card: true, square_gift_card: false, bank_account: process.env.SQUARE_ENABLE_ACH === "true", buy_now_pay_later: false, cash_app_pay: false }, invoice_number: input.invoiceNumber, title: input.title, description: `${input.description}\n\nSecure online payment is available through this invoice. Check payments must include ${input.invoiceNumber}. Refund and cancellation terms are governed by the attached signed engagement agreement.`, store_payment_method_enabled: false } }) });
+    const checkPayee = process.env.FORTRESS_CHECK_PAYEE?.trim();
+    const checkAddress = process.env.FORTRESS_CHECK_REMITTANCE_ADDRESS?.trim();
+    const checkText = checkPayee && checkAddress
+      ? `Check option: make payable to ${checkPayee}; mail to ${checkAddress}; include ${input.invoiceNumber} on the memo line.`
+      : "Check payment is not enabled on this invoice. Contact clientservice@fortresstaxadvisors.com before mailing any check.";
+    const draft = await squareFetch<{ invoice: SquareInvoice }>("/v2/invoices", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "invoice"), invoice: { order_id: orderData.order.id, primary_recipient: { customer_id: customerId }, delivery_method: "EMAIL", payment_requests: paymentRequests, accepted_payment_methods: { card: true, square_gift_card: false, bank_account: process.env.SQUARE_ENABLE_ACH === "true", buy_now_pay_later: false, cash_app_pay: false }, invoice_number: input.invoiceNumber, title: input.title, description: `${input.description}\n\nSecure online payment is available through this invoice. ${checkText} Refund and cancellation terms are governed by the attached signed engagement agreement.`, store_payment_method_enabled: false } }) });
     draftId = draft.invoice.id;
     const existing = await squareFetch<{ invoice: SquareInvoice }>(`/v2/invoices/${encodeURIComponent(draftId)}`);
     if (existing.invoice.status && existing.invoice.status !== "DRAFT") {
@@ -64,10 +71,29 @@ export async function createSquareInvoice(input: InvoiceInput, signedAgreement: 
   }
 }
 
-async function findOrCreateCustomer(input: InvoiceInput) {
+async function existingSquareCustomer(input: InvoiceInput) {
   const found = await squareFetch<{ customers?: SquareCustomer[] }>("/v2/customers/search", { method: "POST", body: JSON.stringify({ query: { filter: { email_address: { exact: input.email } } }, limit: 2 }) });
   if ((found.customers?.length || 0) > 1) throw new Error("Multiple Square customers use this email; merge them in Square first");
-  if (found.customers?.[0]) return found.customers[0].id;
+  if (found.customers?.[0]) {
+    const customer = found.customers[0];
+    const same = (a?: string, b?: string) => (a || "").trim().toLocaleLowerCase() === (b || "").trim().toLocaleLowerCase();
+    if (
+      (customer.given_name && !same(customer.given_name, input.givenName))
+      || (customer.family_name && !same(customer.family_name, input.familyName))
+      || (customer.company_name && input.company && !same(customer.company_name, input.company))
+    ) throw new Error("The existing Square customer for this email has different identity details; review the customer record before sending");
+    return customer.id;
+  }
+  return undefined;
+}
+
+export async function preflightSquareCustomer(input: InvoiceInput) {
+  await existingSquareCustomer(input);
+}
+
+async function findOrCreateCustomer(input: InvoiceInput) {
+  const existing = await existingSquareCustomer(input);
+  if (existing) return existing;
   const created = await squareFetch<{ customer: SquareCustomer }>("/v2/customers", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "customer"), given_name: input.givenName, family_name: input.familyName, email_address: input.email, ...(input.phone ? { phone_number: input.phone } : {}), ...(input.company ? { company_name: input.company } : {}) }) });
   return created.customer.id;
 }

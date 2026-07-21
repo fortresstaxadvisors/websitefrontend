@@ -30,6 +30,8 @@ const ALLOWED_TRANSITIONS: Partial<Record<CheckState, readonly CheckAction[]>> =
   RECEIVED: ["DEPOSIT", "RETURN"],
   DEPOSITED: ["CLEAR", "RETURN"],
   CLEARED_AWAITING_SQUARE: ["RECONCILE", "RETURN"],
+  RETURNED: ["RECEIVE"],
+  RECONCILED: ["RECEIVE", "RETURN"],
 };
 
 export class CheckTransitionError extends Error {

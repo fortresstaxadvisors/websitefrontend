@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getRuntimeSecrets } from "@/lib/runtime-secrets";
 import { readWebhookBody, WebhookBodyTooLargeError } from "@/lib/webhook-body";
+import { putBillingEventIfAbsent } from "@/lib/billing-operations-store";
 
 async function valid(signature: string, raw: string) {
   const { SQUARE_WEBHOOK_SIGNATURE_KEY: key } = await getRuntimeSecrets();
@@ -23,11 +24,18 @@ export async function POST(request: Request) {
     secrets = await getRuntimeSecrets();
     if (!await valid(request.headers.get("x-square-hmacsha256-signature") || "", raw)) return new Response("Invalid signature", { status: 403 });
   } catch { return new Response("Webhook verification is unavailable", { status: 503 }); }
-  let event: { event_id?: string; type?: string; created_at?: string };
+  let event: { event_id?: string; type?: string; created_at?: string; data?: { id?: string } };
   try { event = JSON.parse(raw); }
   catch { return new Response("Invalid event body", { status: 400 }); }
   if (!event.event_id || !event.type) return new Response("Event ID and type are required", { status: 422 });
-  console.info("[square-webhook]", JSON.stringify({ eventId: event.event_id, type: event.type, createdAt: event.created_at }));
+  let created: boolean;
+  try {
+    created = await putBillingEventIfAbsent({ eventId: event.event_id, type: event.type, eventCreatedAt: event.created_at, resourceId: event.data?.id, receivedAt: new Date().toISOString() });
+  } catch (cause) {
+    console.error("[square-webhook] durable receipt failed", cause);
+    return Response.json({ error: "Event receipt failed; retry required" }, { status: 503 });
+  }
+  console.info("[square-webhook]", JSON.stringify({ eventId: event.event_id, type: event.type, createdAt: event.created_at, duplicate: !created }));
   if (process.env.PAYMENT_EVENT_FORWARD_URL) {
     try {
       const forwarded = await fetch(process.env.PAYMENT_EVENT_FORWARD_URL, { method: "POST", signal: AbortSignal.timeout(10_000), headers: { "Content-Type": "application/json", "Idempotency-Key": event.event_id, "X-Fortress-Event-Id": event.event_id, "X-Fortress-Event-Type": event.type, ...(secrets.PAYMENT_EVENT_FORWARD_TOKEN ? { Authorization: `Bearer ${secrets.PAYMENT_EVENT_FORWARD_TOKEN}` } : {}) }, body: raw });
@@ -37,5 +45,5 @@ export async function POST(request: Request) {
       return Response.json({ error: "Event forwarding failed; retry required" }, { status: 503 });
     }
   }
-  return Response.json({ received: true });
+  return Response.json({ received: true, duplicate: !created });
 }

@@ -56,3 +56,15 @@ test("requires production settings to move together", () => {
 test("prevents a forwarding loop", () => {
   assert.throws(() => buildRuntimeConfig(environment({ PAYMENT_EVENT_FORWARD_URL: "https://test.fortresstaxadvisors.com/api/webhooks/square" })), /cannot point/);
 });
+
+test("validates durable operations and refund controls", () => {
+  const output = buildRuntimeConfig(environment({
+    FORTRESS_BILLING_OPERATIONS_TABLE: "fortress-billing-sandbox-operations",
+    FORTRESS_REFUNDS_ENABLED: "true",
+    SQUARE_ENABLE_ACH: "true",
+  }));
+  assert.match(output, /FORTRESS_BILLING_OPERATIONS_TABLE="fortress-billing-sandbox-operations"/);
+  assert.match(output, /FORTRESS_REFUNDS_ENABLED="true"/);
+  assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_REFUNDS_ENABLED: "yes" })), /must be true or false/);
+  assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_BILLING_OPERATIONS_TABLE: "bad table name" })), /invalid/);
+});

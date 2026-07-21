@@ -1,6 +1,18 @@
 import { squareFetch, squareLocationId } from "@/lib/square";
 
-type SquareInvoice = { id: string; version: number; invoice_number?: string; title?: string; status?: string; public_url?: string; updated_at?: string; primary_recipient?: { email_address?: string }; payment_requests?: { due_date?: string; computed_amount_money?: { amount?: number } }[] };
+type SquareInvoice = {
+  id: string;
+  version: number;
+  invoice_number?: string;
+  order_id?: string;
+  title?: string;
+  status?: string;
+  public_url?: string;
+  updated_at?: string;
+  primary_recipient?: { email_address?: string };
+  accepted_payment_methods?: { card?: boolean; bank_account?: boolean };
+  payment_requests?: { due_date?: string; computed_amount_money?: { amount?: number }; total_completed_amount_money?: { amount?: number } }[];
+};
 
 export async function GET() {
   try {
@@ -10,4 +22,4 @@ export async function GET() {
   } catch (cause) { return Response.json({ error: cause instanceof Error ? cause.message : "Could not load invoices" }, { status: 502 }); }
 }
 
-function summary(invoice: SquareInvoice) { return { id: invoice.id, number: invoice.invoice_number || invoice.id, status: invoice.status || "UNKNOWN", title: invoice.title || "Invoice", email: invoice.primary_recipient?.email_address || "", amount: invoice.payment_requests?.reduce((sum, p) => sum + (p.computed_amount_money?.amount || 0), 0) || 0, dueDate: invoice.payment_requests?.at(-1)?.due_date, publicUrl: invoice.public_url, updatedAt: invoice.updated_at }; }
+function summary(invoice: SquareInvoice) { return { id: invoice.id, orderId: invoice.order_id || "", number: invoice.invoice_number || invoice.id, status: invoice.status || "UNKNOWN", title: invoice.title || "Invoice", email: invoice.primary_recipient?.email_address || "", amount: invoice.payment_requests?.reduce((sum, p) => sum + (p.computed_amount_money?.amount || 0), 0) || 0, completedAmount: invoice.payment_requests?.reduce((sum, p) => sum + (p.total_completed_amount_money?.amount || 0), 0) || 0, acceptsCard: invoice.accepted_payment_methods?.card === true, acceptsAch: invoice.accepted_payment_methods?.bank_account === true, dueDate: invoice.payment_requests?.at(-1)?.due_date, publicUrl: invoice.public_url, updatedAt: invoice.updated_at }; }

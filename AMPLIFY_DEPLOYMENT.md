@@ -117,6 +117,13 @@ bank-account payment. `SQUARE_SANDBOX_SKIP_ATTACHMENTS` must be `false` or absen
 in production. Set the firm signer name and email together when the template
 requires Fortress countersignature.
 
+Set `FORTRESS_BILLING_OPERATIONS_TABLE` to the branch-specific DynamoDB table
+used for durable Square event receipts and the check-clearing audit trail. Grant
+the branch Compute role only `dynamodb:GetItem`, `dynamodb:PutItem`, and
+`dynamodb:Scan` on that exact table. Keep `FORTRESS_REFUNDS_ENABLED=false` until
+the restricted full-refund form, permissions, and low-value pilot have passed in
+the corresponding environment.
+
 The build fails closed if a sandbox branch targets the production website
 origin, if the secret identifier does not contain the selected deployment
 stage, or if the deployment stage and Square environment differ. Keep separate

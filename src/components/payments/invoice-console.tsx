@@ -1,14 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { InvoiceActions, PaymentRiskPanel } from "@/components/payments/payment-operations";
 
 type InvoiceSummary = {
   id: string;
+  orderId: string;
   number: string;
   status: string;
   title: string;
   email: string;
   amount: number;
+  completedAmount: number;
+  acceptsCard: boolean;
+  acceptsAch: boolean;
   dueDate?: string;
   publicUrl?: string;
   updatedAt?: string;
@@ -95,6 +100,7 @@ export function InvoiceConsole() {
   const [submitting, setSubmitting] = useState(false);
   const [lineItems, setLineItems] = useState("");
   const [depositPercent, setDepositPercent] = useState("0");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [message, setMessage] = useState<{
     ok: boolean;
     text: string;
@@ -115,6 +121,7 @@ export function InvoiceConsole() {
       if (!engagementResponse.ok) throw new Error(engagementData.error);
       setInvoices(invoiceData.invoices);
       setEngagements(engagementData.engagements);
+      setRefreshKey((value) => value + 1);
     } catch (error) {
       setMessage({
         ok: false,
@@ -602,6 +609,13 @@ export function InvoiceConsole() {
                     </a>
                   ) : null}
                 </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-[0.68rem] font-bold uppercase tracking-[0.1em] text-[var(--faint)]">
+                  {invoice.acceptsCard ? <span>Card</span> : null}
+                  {invoice.acceptsAch ? <span>ACH</span> : null}
+                  <span>Check by staff reconciliation</span>
+                  {invoice.completedAmount > 0 ? <span>{formatMoney(invoice.completedAmount)} completed</span> : null}
+                </div>
+                <InvoiceActions invoice={invoice} onChanged={load} />
               </article>
             ))
           ) : (
@@ -614,6 +628,7 @@ export function InvoiceConsole() {
             </div>
           )}
         </div>
+        <PaymentRiskPanel refreshKey={refreshKey} />
       </section>
     </div>
   );

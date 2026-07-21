@@ -68,6 +68,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/internal/invoices/:path*", "/api/internal/invoices/:path*", "/api/internal/engagements/:path*"],
+  matcher: ["/internal/invoices/:path*", "/api/internal/invoices/:path*", "/api/internal/engagements/:path*", "/api/internal/checks/:path*", "/api/internal/refunds/:path*", "/api/internal/operations/:path*"],
   runtime: "nodejs",
 };

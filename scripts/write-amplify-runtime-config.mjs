@@ -19,6 +19,8 @@ const optional = [
   "FORTRESS_SECRET_CACHE_TTL_SECONDS",
   "SQUARE_SANDBOX_SKIP_ATTACHMENTS",
   "SQUARE_ENABLE_ACH",
+  "FORTRESS_REFUNDS_ENABLED",
+  "FORTRESS_BILLING_OPERATIONS_TABLE",
   "PAYMENT_EVENT_FORWARD_URL",
   "DOCUSEAL_FIRM_ROLE",
   "DOCUSEAL_FIRM_SIGNER_NAME",
@@ -60,9 +62,10 @@ export function buildRuntimeConfig(environment = process.env) {
   } else if (new URL(values.PAYMENT_BASE_URL).origin === "https://fortresstaxadvisors.com") {
     throw new Error("Sandbox PAYMENT_BASE_URL cannot use the production origin");
   }
-  for (const key of ["SQUARE_SANDBOX_SKIP_ATTACHMENTS", "SQUARE_ENABLE_ACH"]) {
+  for (const key of ["SQUARE_SANDBOX_SKIP_ATTACHMENTS", "SQUARE_ENABLE_ACH", "FORTRESS_REFUNDS_ENABLED"]) {
     if (values[key] && !new Set(["true", "false"]).has(values[key])) throw new Error(`${key} must be true or false`);
   }
+  if (values.FORTRESS_BILLING_OPERATIONS_TABLE && !/^[A-Za-z0-9_.-]{3,255}$/.test(values.FORTRESS_BILLING_OPERATIONS_TABLE)) throw new Error("FORTRESS_BILLING_OPERATIONS_TABLE is invalid");
   if (values.DOCUSEAL_SANDBOX_SEND_EMAIL && !new Set(["true", "false"]).has(values.DOCUSEAL_SANDBOX_SEND_EMAIL)) throw new Error("DOCUSEAL_SANDBOX_SEND_EMAIL must be true or false");
   if (values.FORTRESS_DEPLOYMENT_STAGE === "production" && values.DOCUSEAL_SANDBOX_SEND_EMAIL === "false") throw new Error("Production cannot disable DocuSeal signature-request email");
   if (values.FORTRESS_SECRET_CACHE_TTL_SECONDS && (!/^\d+$/.test(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) || Number(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) < 30 || Number(values.FORTRESS_SECRET_CACHE_TTL_SECONDS) > 3600)) throw new Error("FORTRESS_SECRET_CACHE_TTL_SECONDS must be between 30 and 3600");

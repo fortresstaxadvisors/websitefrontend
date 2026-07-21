@@ -124,6 +124,16 @@ the branch Compute role only `dynamodb:GetItem`, `dynamodb:PutItem`, and
 the restricted full-refund form, permissions, and low-value pilot have passed in
 the corresponding environment.
 
+Provide `FORTRESS_DISPUTE_ALERT_RECIPIENTS` only in the operator's temporary
+CloudShell environment as a comma-separated list of the staff email addresses
+that must receive immediate dispute alerts. Recipient addresses are not copied
+into Amplify or its runtime build configuration. The deployment
+script creates or reuses a branch-specific standard SNS topic, subscribes each
+address, grants the Amplify Compute role only `sns:Publish` on that exact topic,
+and exports its non-secret ARN as `FORTRESS_DISPUTE_ALERT_TOPIC_ARN`. Every new
+recipient must open the confirmation email from AWS and confirm the subscription;
+an SNS subscription that remains `PendingConfirmation` receives no alerts.
+
 The build fails closed if a sandbox branch targets the production website
 origin, if the secret identifier does not contain the selected deployment
 stage, or if the deployment stage and Square environment differ. Keep separate

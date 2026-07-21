@@ -16,6 +16,8 @@ fortress_deploy_billing_sandbox() (
   readonly BASE_URL="https://codex-billing-automation.d1th51h382rpvi.amplifyapp.com"
   readonly SECRET_ID="fortress/website/billing-sandbox"
   readonly OPERATIONS_TABLE="fortress-billing-sandbox-operations"
+  readonly EVIDENCE_BUCKET_PREFIX="fortress-billing-sandbox-evidence"
+  readonly DISPUTE_ALERT_TOPIC_NAME="fortress-billing-sandbox-dispute-alerts"
   readonly COMPUTE_ROLE="fortress-amplify-billing-sandbox-compute"
   readonly SQUARE_LOCATION_ID="LE0JJ26BSF0CX"
   readonly DOCUSEAL_TEMPLATE_ID="3"
@@ -24,8 +26,11 @@ fortress_deploy_billing_sandbox() (
   readonly SQUARE_WEBHOOK_URL="${BASE_URL}/api/webhooks/square"
   readonly DOCUSEAL_WEBHOOK_URL="${BASE_URL}/api/webhooks/docuseal"
 
-  local temp_dir queue_url
+  local temp_dir queue_url service_acceptance_template_id dispute_alert_recipients recipient
+  local -a dispute_recipient_parts
   temp_dir="$(mktemp -d)"
+  service_acceptance_template_id="${DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID:-}"
+  dispute_alert_recipients="${FORTRESS_DISPUTE_ALERT_RECIPIENTS:-}"
   cleanup() {
     if [[ -n "${queue_url:-}" ]]; then
       aws sqs delete-queue --region "$AWS_REGION" --queue-url "$queue_url" >/dev/null 2>&1 || true
@@ -38,12 +43,35 @@ fortress_deploy_billing_sandbox() (
   command -v curl >/dev/null
   command -v jq >/dev/null
 
+  if [[ ! "$service_acceptance_template_id" =~ ^[1-9][0-9]*$ ]]; then
+    echo "DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID must be a positive integer." >&2
+    return 2
+  fi
+  if [[ "$dispute_alert_recipients" == *$'\n'* || "$dispute_alert_recipients" == *$'\r'* ]]; then
+    echo "FORTRESS_DISPUTE_ALERT_RECIPIENTS must be a comma-separated list on one line." >&2
+    return 2
+  fi
+  if [[ -n "$dispute_alert_recipients" ]]; then
+    IFS=',' read -r -a dispute_recipient_parts <<<"$dispute_alert_recipients"
+    for recipient in "${dispute_recipient_parts[@]}"; do
+      if [[ ! "$recipient" =~ ^[[:space:]]*[^[:space:]@,]+@[^[:space:]@,]+\.[^[:space:]@,]{2,}[[:space:]]*$ ]]; then
+        echo "FORTRESS_DISPUTE_ALERT_RECIPIENTS contains an invalid email address." >&2
+        return 2
+      fi
+    done
+    dispute_alert_recipients="$(
+      jq -nr --arg recipients "$dispute_alert_recipients" \
+        '$recipients | split(",") | map(gsub("^\\s+|\\s+$"; "")) | unique_by(ascii_downcase) | join(",")'
+    )"
+    IFS=',' read -r -a dispute_recipient_parts <<<"$dispute_alert_recipients"
+  fi
+
   echo "Verifying the authenticated AWS account and Sandbox branch..."
   aws sts get-caller-identity --region "$AWS_REGION" >/dev/null
   aws amplify get-branch --region "$AWS_REGION" --app-id "$APP_ID" --branch-name "$BRANCH" >/dev/null
 
   echo "Creating or locating the on-demand billing operations ledger..."
-  local account_id table_arn operations_policy
+  local account_id table_arn operations_policy evidence_bucket evidence_bucket_arn evidence_policy bucket_region
   account_id="$(aws sts get-caller-identity --query Account --output text)"
   if ! aws dynamodb describe-table --region "$AWS_REGION" --table-name "$OPERATIONS_TABLE" >/dev/null 2>&1; then
     aws dynamodb create-table \
@@ -72,6 +100,116 @@ fortress_deploy_billing_sandbox() (
     --policy-name "fortress-billing-sandbox-operations" \
     --policy-document "file://${operations_policy}" \
     >/dev/null
+
+  echo "Creating or locating the private, versioned billing evidence archive..."
+  evidence_bucket="${EVIDENCE_BUCKET_PREFIX}-${account_id}"
+  evidence_bucket_arn="arn:aws:s3:::${evidence_bucket}"
+  if aws s3api head-bucket --region "$AWS_REGION" --bucket "$evidence_bucket" >/dev/null 2>&1; then
+    bucket_region="$(aws s3api get-bucket-location --region "$AWS_REGION" --bucket "$evidence_bucket" --query 'LocationConstraint' --output text)"
+    [[ "$bucket_region" == "None" ]] && bucket_region="us-east-1"
+    if [[ "$bucket_region" != "$AWS_REGION" ]]; then
+      echo "Existing evidence bucket is in ${bucket_region}, expected ${AWS_REGION}." >&2
+      return 1
+    fi
+  else
+    aws s3api create-bucket \
+      --region "$AWS_REGION" \
+      --bucket "$evidence_bucket" \
+      >/dev/null
+  fi
+  aws s3api put-public-access-block \
+    --region "$AWS_REGION" \
+    --bucket "$evidence_bucket" \
+    --public-access-block-configuration \
+      BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+  aws s3api put-bucket-ownership-controls \
+    --region "$AWS_REGION" \
+    --bucket "$evidence_bucket" \
+    --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'
+  aws s3api put-bucket-encryption \
+    --region "$AWS_REGION" \
+    --bucket "$evidence_bucket" \
+    --server-side-encryption-configuration \
+      '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+  aws s3api put-bucket-versioning \
+    --region "$AWS_REGION" \
+    --bucket "$evidence_bucket" \
+    --versioning-configuration Status=Enabled
+
+  evidence_policy="${temp_dir}/billing-evidence-policy.json"
+  jq -n \
+    --arg engagement_objects "${evidence_bucket_arn}/engagements/*" \
+    --arg acceptance_objects "${evidence_bucket_arn}/acceptances/*" \
+    --arg dispute_objects "${evidence_bucket_arn}/disputes/*" \
+    '{
+      Version:"2012-10-17",
+      Statement:[{
+        Sid:"FortressBillingEvidenceObjects",
+        Effect:"Allow",
+        Action:["s3:GetObject","s3:GetObjectVersion","s3:PutObject"],
+        Resource:[$engagement_objects,$acceptance_objects,$dispute_objects]
+      }]
+    }' >"$evidence_policy"
+  aws iam put-role-policy \
+    --role-name "$COMPUTE_ROLE" \
+    --policy-name "fortress-billing-sandbox-evidence" \
+    --policy-document "file://${evidence_policy}" \
+    >/dev/null
+
+  local dispute_alert_topic_arn="" dispute_alert_policy subscriptions_json
+  if [[ -n "$dispute_alert_recipients" ]]; then
+    echo "Creating or locating the standard SNS dispute-alert topic..."
+    dispute_alert_topic_arn="$(
+      aws sns create-topic \
+        --region "$AWS_REGION" \
+        --name "$DISPUTE_ALERT_TOPIC_NAME" \
+        --query TopicArn \
+        --output text
+    )"
+    [[ "$dispute_alert_topic_arn" == "arn:aws:sns:${AWS_REGION}:${account_id}:${DISPUTE_ALERT_TOPIC_NAME}" ]]
+    subscriptions_json="$(
+      aws sns list-subscriptions-by-topic \
+        --region "$AWS_REGION" \
+        --topic-arn "$dispute_alert_topic_arn" \
+        --output json
+    )"
+    for recipient in "${dispute_recipient_parts[@]}"; do
+      if jq -e --arg endpoint "$recipient" \
+        '.Subscriptions[]? | select(.Protocol == "email" and (.Endpoint | ascii_downcase) == ($endpoint | ascii_downcase))' \
+        <<<"$subscriptions_json" >/dev/null; then
+        echo "Reusing the existing SNS email subscription for ${recipient}."
+      else
+        aws sns subscribe \
+          --region "$AWS_REGION" \
+          --topic-arn "$dispute_alert_topic_arn" \
+          --protocol email \
+          --notification-endpoint "$recipient" \
+          >/dev/null
+        echo "Requested an SNS email subscription for ${recipient}. The recipient must confirm the AWS subscription email before alerts can arrive."
+      fi
+    done
+
+    dispute_alert_policy="${temp_dir}/billing-dispute-alert-policy.json"
+    jq -n --arg topic "$dispute_alert_topic_arn" '{
+      Version:"2012-10-17",
+      Statement:[{
+        Sid:"FortressBillingDisputeAlerts",
+        Effect:"Allow",
+        Action:"sns:Publish",
+        Resource:$topic
+      }]
+    }' >"$dispute_alert_policy"
+    aws iam put-role-policy \
+      --role-name "$COMPUTE_ROLE" \
+      --policy-name "fortress-billing-sandbox-dispute-alerts" \
+      --policy-document "file://${dispute_alert_policy}" \
+      >/dev/null
+  else
+    aws iam delete-role-policy \
+      --role-name "$COMPUTE_ROLE" \
+      --policy-name "fortress-billing-sandbox-dispute-alerts" \
+      >/dev/null 2>&1 || true
+  fi
 
   echo "Opening an encrypted, five-minute one-time secret transport from the DocuSeal host..."
   queue_url="$(
@@ -156,6 +294,10 @@ fortress_deploy_billing_sandbox() (
       --arg square_webhook "$SQUARE_WEBHOOK_URL" \
       --arg template "$DOCUSEAL_TEMPLATE_ID" \
       --arg operations_table "$OPERATIONS_TABLE" \
+      --arg evidence_bucket "$evidence_bucket" \
+      --arg service_acceptance_template "$service_acceptance_template_id" \
+      --arg dispute_recipients "$dispute_alert_recipients" \
+      --arg dispute_topic "$dispute_alert_topic_arn" \
       '{
         FORTRESS_DEPLOYMENT_STAGE: "sandbox",
         FORTRESS_RUNTIME_SECRET_ID: $secret,
@@ -168,6 +310,7 @@ fortress_deploy_billing_sandbox() (
         SQUARE_ENABLE_ACH: "true",
         FORTRESS_REFUNDS_ENABLED: "true",
         FORTRESS_BILLING_OPERATIONS_TABLE: $operations_table,
+        FORTRESS_BILLING_EVIDENCE_BUCKET: $evidence_bucket,
         SQUARE_WEBHOOK_NOTIFICATION_URL: $square_webhook,
         DOCUSEAL_BASE_URL: "https://sign.fortresstaxadvisors.com/api",
         DOCUSEAL_ENGAGEMENT_TEMPLATE_ID: $template,
@@ -177,9 +320,19 @@ fortress_deploy_billing_sandbox() (
         DOCUSEAL_FIRM_SIGNER_EMAIL: "omer@fortresstaxadvisors.com",
         DOCUSEAL_REPLY_TO: "clientservice@fortresstaxadvisors.com",
         DOCUSEAL_SANDBOX_SEND_EMAIL: "false"
-      }'
+      }
+      + (if $service_acceptance_template == "" then {} else {DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID:$service_acceptance_template} end)
+      + (if $dispute_recipients == "" then {} else {FORTRESS_DISPUTE_ALERT_TOPIC_ARN:$dispute_topic} end)'
   )"
-  environment_json="$(jq -n --argjson current "$current_environment" --argjson reviewed "$reviewed_environment" '$current + $reviewed')"
+  environment_json="$(
+    jq -n \
+      --argjson current "$current_environment" \
+      --argjson reviewed "$reviewed_environment" \
+      --arg alerts_enabled "$dispute_alert_recipients" \
+      '($current + $reviewed) |
+        del(.FORTRESS_DISPUTE_ALERT_RECIPIENTS) |
+        if $alerts_enabled == "" then del(.FORTRESS_DISPUTE_ALERT_TOPIC_ARN) else . end'
+  )"
   update_input="$(
     jq -n \
       --arg app "$APP_ID" \

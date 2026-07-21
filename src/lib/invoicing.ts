@@ -6,7 +6,9 @@ export type InvoiceInput = {
   workflowId: string;
   givenName: string; familyName: string; email: string; phone: string; company: string;
   invoiceNumber: string; title: string; description: string; dueDate: string;
-  depositPercent: number; depositDueDate: string;
+  depositPercent: number; depositDueDate: string; allowAch: boolean;
+  payerRelationship: "SIGNER" | "AUTHORIZED_BUSINESS_PAYER" | "AUTHORIZED_THIRD_PARTY";
+  authorizedPayerName: string; authorizedPayerEmail: string;
   lineItems: { name: string; quantity: "1"; base_price_money: { amount: number; currency: "USD" } }[];
 };
 
@@ -22,16 +24,28 @@ export function parseInvoiceForm(form: FormData): InvoiceInput {
   const givenName = text(form, "givenName"), familyName = text(form, "familyName"), email = text(form, "email").toLowerCase(), confirmEmail = text(form, "confirmEmail").toLowerCase(), phone = text(form, "phone"), company = text(form, "company");
   const invoiceNumber = text(form, "invoiceNumber"), title = text(form, "title"), description = text(form, "description"), dueDate = text(form, "dueDate"), depositDueDate = text(form, "depositDueDate");
   const depositPercent = Number(text(form, "depositPercent") || "0");
+  const allowAch = text(form, "allowAch") === "yes";
+  const payerRelationship = text(form, "payerRelationship");
+  const authorizedPayerName = text(form, "authorizedPayerName");
+  const authorizedPayerEmail = text(form, "authorizedPayerEmail").toLowerCase();
   const today = fortressToday();
   if (!givenName || givenName.length > 80 || !familyName || familyName.length > 80 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email !== confirmEmail || !/^[A-Za-z0-9._-]{4,64}$/.test(invoiceNumber) || !title || title.length > 128 || description.length < 20 || description.length > 1500 || company.length > 191 || !validDate(dueDate) || dueDate < today || text(form, "confirmed") !== "yes") throw new Error("Complete every required field, confirm the client email, and use a current or future due date");
   if (!Number.isFinite(depositPercent) || depositPercent < 0 || depositPercent > 90 || (depositPercent > 0 && (!validDate(depositDueDate) || depositDueDate < today || depositDueDate > dueDate))) throw new Error("Deposit settings are invalid");
+  if (!new Set(["SIGNER", "AUTHORIZED_BUSINESS_PAYER", "AUTHORIZED_THIRD_PARTY"]).has(payerRelationship)) throw new Error("Select who is authorized to make the payment");
+  if (payerRelationship !== "SIGNER" && (!authorizedPayerName || authorizedPayerName.length > 128 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(authorizedPayerEmail))) throw new Error("Provide the authorized payer name and email when the signer will not pay");
   const lineItems = text(form, "lineItems").split("\n").filter((line) => line.trim()).map((line) => { const split = line.lastIndexOf("|"); const name = line.slice(0, split).trim(); const rawAmount = line.slice(split + 1).trim(); if (split < 1 || !name || name.length > 255 || !/^\d{1,7}(?:\.\d{1,2})?$/.test(rawAmount)) throw new Error(`Invalid line item: ${line}`); const amount = Math.round(Number(rawAmount) * 100); if (!Number.isSafeInteger(amount) || amount < 1) throw new Error(`Invalid line item: ${line}`); return { name, quantity: "1" as const, base_price_money: { amount, currency: "USD" as const } }; });
   if (!lineItems.length || lineItems.length > 50) throw new Error("Add between 1 and 50 line items");
   // The invoice number is the business-level uniqueness boundary. Using a
   // deterministic workflow ID makes duplicate signature callbacks and even
   // duplicate engagement submissions converge on one Square invoice.
   const workflowId = createHash("sha256").update(`fortress:${invoiceNumber.toLowerCase()}`).digest("hex").slice(0, 32);
-  return { workflowId, givenName, familyName, email, phone: normalizePhone(phone), company, invoiceNumber, title, description, dueDate, depositPercent, depositDueDate, lineItems };
+  return { workflowId, givenName, familyName, email, phone: normalizePhone(phone), company, invoiceNumber, title, description, dueDate, depositPercent, depositDueDate, allowAch, payerRelationship: payerRelationship as InvoiceInput["payerRelationship"], authorizedPayerName, authorizedPayerEmail, lineItems };
+}
+
+export function payerAuthorizationStatement(input: InvoiceInput) {
+  if (!input.payerRelationship || input.payerRelationship === "SIGNER") return `Expected payer: the engagement signer (${input.givenName} ${input.familyName}).`;
+  const relationship = input.payerRelationship === "AUTHORIZED_BUSINESS_PAYER" ? "authorized business payer" : "authorized third-party payer";
+  return `Expected payer: ${input.authorizedPayerName}, identified by the client as an ${relationship}. The payer email is retained only in Fortress's private billing evidence record.`;
 }
 
 const key = (workflowId: string, stage: string) => createHash("sha256").update(`${workflowId}:${stage}`).digest("hex").slice(0, 45);
@@ -49,11 +63,12 @@ export async function createSquareInvoice(input: InvoiceInput, signedAgreement: 
     const checkText = checkPayee && checkAddress
       ? `Check option: make payable to ${checkPayee}; mail to ${checkAddress}; include ${input.invoiceNumber} on the memo line.`
       : "Check payment is not enabled on this invoice. Contact clientservice@fortresstaxadvisors.com before mailing any check.";
-    const draft = await squareFetch<{ invoice: SquareInvoice }>("/v2/invoices", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "invoice"), invoice: { order_id: orderData.order.id, primary_recipient: { customer_id: customerId }, delivery_method: "EMAIL", payment_requests: paymentRequests, accepted_payment_methods: { card: true, square_gift_card: false, bank_account: process.env.SQUARE_ENABLE_ACH === "true", buy_now_pay_later: false, cash_app_pay: false }, invoice_number: input.invoiceNumber, title: input.title, description: `${input.description}\n\nSecure online payment is available through this invoice. ${checkText} Refund and cancellation terms are governed by the attached signed engagement agreement.`, store_payment_method_enabled: false } }) });
+    const achEnabled = process.env.SQUARE_ENABLE_ACH === "true" && input.allowAch === true;
+    const draft = await squareFetch<{ invoice: SquareInvoice }>("/v2/invoices", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, "invoice"), invoice: { order_id: orderData.order.id, primary_recipient: { customer_id: customerId }, delivery_method: "EMAIL", payment_requests: paymentRequests, accepted_payment_methods: { card: true, square_gift_card: false, bank_account: achEnabled, buy_now_pay_later: false, cash_app_pay: false }, invoice_number: input.invoiceNumber, title: input.title, description: `${input.description}\n\n${payerAuthorizationStatement(input)}\n\nSecure online payment is available through this invoice.${achEnabled ? " ACH is enabled for this approved engagement; pending or completed ACH is not treated as irrevocable." : " ACH is not enabled for this engagement."} ${checkText} Refund and cancellation terms are governed by the attached signed engagement agreement.`, store_payment_method_enabled: false } }) });
     draftId = draft.invoice.id;
     const existing = await squareFetch<{ invoice: SquareInvoice }>(`/v2/invoices/${encodeURIComponent(draftId)}`);
     if (existing.invoice.status && existing.invoice.status !== "DRAFT") {
-      return { invoiceId: existing.invoice.id, invoiceNumber: existing.invoice.invoice_number, publicUrl: existing.invoice.public_url, status: existing.invoice.status };
+      return { invoiceId: existing.invoice.id, invoiceNumber: existing.invoice.invoice_number, orderId: orderData.order.id, customerId, publicUrl: existing.invoice.public_url, status: existing.invoice.status };
     }
     const skipSandboxAttachment = process.env.SQUARE_ENVIRONMENT !== "production" && process.env.SQUARE_SANDBOX_SKIP_ATTACHMENTS === "true";
     if (!skipSandboxAttachment) {
@@ -65,7 +80,7 @@ export async function createSquareInvoice(input: InvoiceInput, signedAgreement: 
     // must use the current version, not the version returned with the draft.
     const current = await squareFetch<{ invoice: SquareInvoice }>(`/v2/invoices/${encodeURIComponent(draftId)}`);
     const published = await squareFetch<{ invoice: SquareInvoice }>(`/v2/invoices/${encodeURIComponent(draftId)}/publish`, { method: "POST", body: JSON.stringify({ version: current.invoice.version, idempotency_key: key(input.workflowId, "publish") }) });
-    return { invoiceId: published.invoice.id, invoiceNumber: published.invoice.invoice_number, publicUrl: published.invoice.public_url, status: published.invoice.status };
+    return { invoiceId: published.invoice.id, invoiceNumber: published.invoice.invoice_number, orderId: orderData.order.id, customerId, publicUrl: published.invoice.public_url, status: published.invoice.status };
   } catch (cause) {
     throw new Error(`${cause instanceof Error ? cause.message : "Invoice creation failed"}${draftId ? ` Draft invoice ${draftId} was not published; review it in Square.` : ""}`);
   }

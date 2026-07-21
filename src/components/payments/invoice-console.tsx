@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InvoiceActions, PaymentRiskPanel } from "@/components/payments/payment-operations";
+import { ServiceAcceptancePanel } from "@/components/payments/service-acceptance-panel";
+import type { ServiceAcceptanceDisplayRecord } from "@/components/payments/service-acceptance-ui";
 
 type InvoiceSummary = {
   id: string;
@@ -112,10 +114,12 @@ function validDraftLines(value: string) {
 export function InvoiceConsole() {
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
   const [engagements, setEngagements] = useState<EngagementSummary[]>([]);
+  const [acceptances, setAcceptances] = useState<ServiceAcceptanceDisplayRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [lineItems, setLineItems] = useState("");
   const [depositPercent, setDepositPercent] = useState("0");
+  const [payerRelationship, setPayerRelationship] = useState("SIGNER");
   const [refreshKey, setRefreshKey] = useState(0);
   const [recordQuery, setRecordQuery] = useState("");
   const [recordsWarning, setRecordsWarning] = useState("");
@@ -131,17 +135,24 @@ export function InvoiceConsole() {
   const load = useCallback(async (preserveMessage = false) => {
     setLoading(true);
     try {
-      const [invoiceResponse, engagementResponse] = await Promise.all([
+      const [invoiceResponse, engagementResponse, acceptanceResponse] = await Promise.all([
         fetch("/api/internal/invoices", { cache: "no-store" }),
         fetch("/api/internal/engagements", { cache: "no-store" }),
+        fetch("/api/internal/acceptances", { cache: "no-store" }),
       ]);
       const invoiceData = await invoiceResponse.json();
       const engagementData = await engagementResponse.json();
+      const acceptanceData = await acceptanceResponse.json();
       if (!invoiceResponse.ok) throw new Error(invoiceData.error);
       if (!engagementResponse.ok) throw new Error(engagementData.error);
       setInvoices(invoiceData.invoices);
       setEngagements(engagementData.engagements);
-      setRecordsWarning([invoiceData.warning, engagementData.warning].filter(Boolean).join(" "));
+      setAcceptances(acceptanceResponse.ok && Array.isArray(acceptanceData.acceptances) ? acceptanceData.acceptances : []);
+      setRecordsWarning([
+        invoiceData.warning,
+        engagementData.warning,
+        acceptanceResponse.ok ? acceptanceData.warning : acceptanceData.error || "Could not load service completion records.",
+      ].filter(Boolean).join(" "));
       setRefreshKey((value) => value + 1);
     } catch (error) {
       if (!preserveMessage) setMessage({
@@ -192,6 +203,7 @@ export function InvoiceConsole() {
       form.reset();
       setLineItems("");
       setDepositPercent("0");
+      setPayerRelationship("SIGNER");
       await load(true);
     } catch (error) {
       setMessage({
@@ -410,6 +422,25 @@ export function InvoiceConsole() {
               onChange={(event) => setDepositPercent(event.target.value)}
               className={fieldClass}
             />
+          </label>
+          <label className={labelClass}>
+            Expected payer *
+            <select name="payerRelationship" required value={payerRelationship} onChange={(event) => setPayerRelationship(event.target.value)} className={fieldClass}>
+              <option value="SIGNER">Engagement signer</option>
+              <option value="AUTHORIZED_BUSINESS_PAYER">Authorized business payer</option>
+              <option value="AUTHORIZED_THIRD_PARTY">Authorized third party</option>
+            </select>
+            <span className="mt-1.5 block text-xs font-normal text-[var(--faint)]">If someone else pays, document their authority before releasing work.</span>
+          </label>
+          {payerRelationship !== "SIGNER" ? (
+            <>
+              <label className={labelClass}>Authorized payer name *<input name="authorizedPayerName" required className={fieldClass} /></label>
+              <label className={labelClass}>Authorized payer email *<input name="authorizedPayerEmail" required type="email" autoComplete="off" className={fieldClass} /></label>
+            </>
+          ) : null}
+          <label className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-sm leading-6 text-[var(--muted)] md:col-span-2">
+            <input name="allowAch" value="yes" type="checkbox" className="mt-1.5 h-4 w-4 shrink-0 accent-[var(--slate)]" />
+            <span><strong className="text-[var(--ink)]">Enable ACH for this engagement.</strong> Use only for an approved client and payment schedule. ACH can remain pending and can later be returned; never release final work merely because an ACH payment was initiated.</span>
           </label>
           <label className={labelClass}>
             Deposit due date
@@ -663,6 +694,11 @@ export function InvoiceConsole() {
                   {invoice.completedAmount > 0 ? <span>{formatMoney(invoice.completedAmount)} completed</span> : null}
                 </div>
                 {invoice.status.toUpperCase() === "PAYMENT_PENDING" ? <p className="mt-3 rounded-lg border border-amber-700/20 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Bank payment is pending. Do not treat this invoice as paid or release final work until Square reports the payment completed.</p> : null}
+                <ServiceAcceptancePanel
+                  invoice={invoice}
+                  acceptances={acceptances.filter((record) => record.invoiceId === invoice.id)}
+                  onChanged={() => load(true)}
+                />
                 <InvoiceActions invoice={invoice} onChanged={load} />
               </article>
             ))

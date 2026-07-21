@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DisputeCasePanel } from "@/components/payments/dispute-case-panel";
 
 export type OperationsInvoice = {
   id: string;
@@ -255,10 +256,6 @@ export function PaymentRiskPanel({ refreshKey, invoices }: { refreshKey: number;
     return () => { active = false; };
   }, [refreshKey]);
   const attentionPayments = data?.payments.filter((payment) => ["FAILED", "PENDING"].includes(payment.status)) || [];
-  const invoiceForPayment = (paymentId: string) => {
-    const payment = data?.payments.find((item) => item.id === paymentId);
-    return invoices.find((invoice) => invoice.orderId === payment?.orderId);
-  };
   if (error && !data) return <p className="mt-8 rounded-xl border border-red-700/20 bg-red-50 p-4 text-sm text-red-900">Payment operations: {error}</p>;
   return (
     <section className="mt-9" aria-labelledby="payment-operations-heading">
@@ -270,7 +267,7 @@ export function PaymentRiskPanel({ refreshKey, invoices }: { refreshKey: number;
         <div className="mt-3 grid gap-3">
           {error ? <p className="rounded-xl border border-amber-700/20 bg-amber-50 p-3 text-sm text-amber-950">Showing last loaded data; refresh failed: {error}</p> : null}
           {data.warnings?.map((warning) => <p key={warning} className="rounded-xl border border-amber-700/20 bg-amber-50 p-3 text-sm text-amber-950">Partial data warning: {warning}</p>)}
-          {data.disputes.map((dispute) => { const invoice = invoiceForPayment(dispute.paymentId); const days = dispute.dueAt ? Math.ceil((new Date(dispute.dueAt).getTime() - Date.now()) / 86_400_000) : undefined; return <article key={dispute.id} className="rounded-xl border border-red-700/25 bg-red-50 p-4 text-sm text-red-950"><strong>Action required — dispute: {dispute.reason.replaceAll("_", " ").toLowerCase()}</strong><p className="mt-1">{dispute.state.replaceAll("_", " ").toLowerCase()} · ${(dispute.amount / 100).toFixed(2)}{dispute.dueAt ? ` · evidence due ${new Date(dispute.dueAt).toLocaleDateString()} (${days} days)` : ""}</p>{invoice ? <p className="mt-1 font-semibold">{invoice.number} · {invoice.email}</p> : <p className="mt-1">Payment {dispute.paymentId || "not supplied by Square"}</p>}<p className="mt-2">Assign an owner immediately and prepare the signed agreement, audit log, itemized invoice, receipt, service-delivery proof, and client communications in Square.</p><p className="mt-1 break-all font-mono text-xs">{dispute.id}</p></article>; })}
+          <DisputeCasePanel refreshKey={refreshKey} squareDisputes={data.disputes} />
           {attentionPayments.map((payment) => { const invoice = invoices.find((item) => item.orderId === payment.orderId); return <article key={payment.id} className="rounded-xl border border-amber-700/20 bg-amber-50 p-4 text-sm text-amber-950"><strong>{payment.sourceType.replaceAll("_", " ").toLowerCase()} payment {payment.status.toLowerCase()}</strong><p className="mt-1">${(payment.amount / 100).toFixed(2)}{invoice ? ` · ${invoice.number} · ${invoice.email}` : ""}</p><p className="mt-1">{payment.status === "PENDING" ? "Do not release final work or ask the client to pay again while Square is processing this payment." : "Review the failed attempt before contacting the client or requesting another payment."}</p><p className="mt-1 break-all font-mono text-xs">{payment.id}</p></article>; })}
           {data.refunds.slice(0, 5).map((refund) => <article key={refund.id} className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-sm"><strong>Refund {refund.status.toLowerCase()}</strong><p className="mt-1 text-[var(--muted)]">${(refund.amount / 100).toFixed(2)} · {refund.reason}</p></article>)}
           {data.events.slice(0, 8).map((event) => <article key={event.eventId} className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-xs"><strong>{event.type.replaceAll("_", " ")}</strong><p className="mt-1 text-[var(--faint)]">Received {new Date(event.receivedAt).toLocaleString()}{event.resourceId ? ` · ${event.resourceId}` : ""}</p></article>)}

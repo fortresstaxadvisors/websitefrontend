@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildRuntimeConfig } from "../scripts/write-amplify-runtime-config.mjs";
 
@@ -51,13 +52,35 @@ test("requires production settings to move together", () => {
     SQUARE_WEBHOOK_NOTIFICATION_URL: "https://fortresstaxadvisors.com/api/webhooks/square",
     SQUARE_SANDBOX_SKIP_ATTACHMENTS: "false",
     FORTRESS_BILLING_OPERATIONS_TABLE: "fortress-billing-production-operations",
+    FORTRESS_BILLING_EVIDENCE_BUCKET: "fortress-billing-production-evidence-123456789012",
     PAYMENT_EVENT_FORWARD_URL: "https://alerts.fortresstaxadvisors.com/square",
+    DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID: "43",
+    FORTRESS_DISPUTE_ALERT_TOPIC_ARN: "arn:aws:sns:us-east-1:123456789012:fortress-billing-production-dispute-alerts",
   })));
 });
 
 test("requires complete check instructions when checks are enabled", () => {
   assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_CHECK_PAYEE: "Fortress Tax Advisors" })), /payee and remittance address/);
   assert.doesNotThrow(() => buildRuntimeConfig(environment({ FORTRESS_CHECK_PAYEE: "Fortress Tax Advisors", FORTRESS_CHECK_REMITTANCE_ADDRESS: "Verified test address" })));
+});
+
+test("requires production acceptance and a dispute alert topic", () => {
+  assert.throws(() => buildRuntimeConfig(environment({
+    FORTRESS_DEPLOYMENT_STAGE: "production", FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-production",
+    PAYMENT_BASE_URL: "https://fortresstaxadvisors.com", SQUARE_ENVIRONMENT: "production",
+    SQUARE_WEBHOOK_NOTIFICATION_URL: "https://fortresstaxadvisors.com/api/webhooks/square",
+    SQUARE_SANDBOX_SKIP_ATTACHMENTS: "false", FORTRESS_BILLING_OPERATIONS_TABLE: "fortress-billing-production-operations",
+    FORTRESS_BILLING_EVIDENCE_BUCKET: "fortress-billing-production-evidence-123456789012",
+    PAYMENT_EVENT_FORWARD_URL: "https://alerts.fortresstaxadvisors.com/square",
+  })), /service-acceptance template/);
+  assert.throws(() => buildRuntimeConfig(environment({
+    FORTRESS_DEPLOYMENT_STAGE: "production", FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-production",
+    PAYMENT_BASE_URL: "https://fortresstaxadvisors.com", SQUARE_ENVIRONMENT: "production",
+    SQUARE_WEBHOOK_NOTIFICATION_URL: "https://fortresstaxadvisors.com/api/webhooks/square",
+    SQUARE_SANDBOX_SKIP_ATTACHMENTS: "false", FORTRESS_BILLING_OPERATIONS_TABLE: "fortress-billing-production-operations",
+    FORTRESS_BILLING_EVIDENCE_BUCKET: "fortress-billing-production-evidence-123456789012",
+    PAYMENT_EVENT_FORWARD_URL: "https://alerts.fortresstaxadvisors.com/square", DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID: "43",
+  })), /dispute alert topic/);
 });
 
 test("prevents a forwarding loop", () => {
@@ -74,4 +97,41 @@ test("validates durable operations and refund controls", () => {
   assert.match(output, /FORTRESS_REFUNDS_ENABLED="true"/);
   assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_REFUNDS_ENABLED: "yes" })), /must be true or false/);
   assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_BILLING_OPERATIONS_TABLE: "bad table name" })), /invalid/);
+});
+
+test("exports and validates the private evidence bucket name", () => {
+  const output = buildRuntimeConfig(environment({
+    FORTRESS_BILLING_EVIDENCE_BUCKET: "fortress-billing-sandbox-evidence-123456789012",
+  }));
+  assert.match(output, /FORTRESS_BILLING_EVIDENCE_BUCKET="fortress-billing-sandbox-evidence-123456789012"/);
+  assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_BILLING_EVIDENCE_BUCKET: "Invalid_Bucket" })), /EVIDENCE_BUCKET is invalid/);
+  assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_BILLING_EVIDENCE_BUCKET: "192.168.1.1" })), /EVIDENCE_BUCKET is invalid/);
+});
+
+test("limits Amplify evidence access to workflow object prefixes", () => {
+  const script = readFileSync(new URL("../scripts/deploy-billing-sandbox-cloudshell.sh", import.meta.url), "utf8");
+  assert.match(script, /engagement_objects "\$\{evidence_bucket_arn\}\/engagements\/\*"/);
+  assert.match(script, /acceptance_objects "\$\{evidence_bucket_arn\}\/acceptances\/\*"/);
+  assert.match(script, /dispute_objects "\$\{evidence_bucket_arn\}\/disputes\/\*"/);
+  assert.match(script, /Action:\["s3:GetObject","s3:GetObjectVersion","s3:PutObject"\]/);
+  assert.doesNotMatch(script, /s3:(?:DeleteObject|ListBucket)/);
+});
+
+test("exports a same-region SNS topic without recipient addresses", () => {
+  const alerts = { FORTRESS_DISPUTE_ALERT_TOPIC_ARN: "arn:aws:sns:us-east-1:123456789012:fortress-billing-sandbox-dispute-alerts" };
+  const output = buildRuntimeConfig(environment(alerts));
+  assert.match(output, /FORTRESS_DISPUTE_ALERT_TOPIC_ARN="arn:aws:sns:us-east-1:123456789012:fortress-billing-sandbox-dispute-alerts"/);
+  assert.doesNotMatch(output, /FORTRESS_DISPUTE_ALERT_RECIPIENTS|owner@|backup@/);
+  assert.throws(() => buildRuntimeConfig(environment({ ...alerts, FORTRESS_DISPUTE_ALERT_TOPIC_ARN: "arn:aws:sns:us-west-2:123456789012:wrong-region" })), /wrong region/);
+});
+
+test("provisions idempotent SNS email alerts with exact-topic publish access", () => {
+  const script = readFileSync(new URL("../scripts/deploy-billing-sandbox-cloudshell.sh", import.meta.url), "utf8");
+  assert.match(script, /aws sns create-topic/);
+  assert.match(script, /aws sns list-subscriptions-by-topic/);
+  assert.match(script, /aws sns subscribe/);
+  assert.match(script, /Action:"sns:Publish"/);
+  assert.match(script, /Resource:\$topic/);
+  assert.match(script, /must confirm the AWS subscription email before alerts can arrive/);
+  assert.doesNotMatch(script, /Action:"sns:\*"/);
 });

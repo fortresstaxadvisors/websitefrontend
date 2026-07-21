@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { completeEngagementWorkflow, getEngagementWorkflow, renewEngagementWorkflow, reserveEngagementWorkflow } from "@/lib/billing-operations-store";
 import { createBillingWorkflowToken } from "@/lib/billing-workflow-token";
 import { docusealFetch } from "@/lib/docuseal";
-import { invoiceTotal, parseInvoiceForm, preflightSquareCustomer } from "@/lib/invoicing";
+import { invoiceTotal, parseInvoiceForm, payerAuthorizationStatement, preflightSquareCustomer } from "@/lib/invoicing";
 
 type Submission = { id: number; status?: string; name?: string; completed_at?: string; created_at?: string; submitters?: { email?: string; status?: string; external_id?: string }[] };
 type CreatedSubmitter = { id: number; submission_id: number; status?: string; slug?: string };
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     const sendEmail = process.env.FORTRESS_DEPLOYMENT_STAGE !== "sandbox"
       || process.env.DOCUSEAL_SANDBOX_SEND_EMAIL !== "false";
     const clientRole = process.env.DOCUSEAL_CLIENT_ROLE || "Client";
-    const submitters: Record<string, unknown>[] = [{ role: clientRole, name: `${input.givenName} ${input.familyName}`, email: input.email, phone: input.phone || undefined, order: 0, require_email_2fa: true, external_id: input.workflowId, metadata: { fortress_workflow: workflowToken }, fields: [{ name: "Client Name", default_value: `${input.givenName} ${input.familyName}`, readonly: true }, { name: "Client Company", default_value: input.company, readonly: true }, { name: "Invoice Number", default_value: input.invoiceNumber, readonly: true }, { name: "Service Description", default_value: input.description, readonly: true }, { name: "Total Amount", default_value: (total / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }), readonly: true }, { name: "Payment Schedule", default_value: input.depositPercent > 0 ? `${input.depositPercent}% deposit due ${input.depositDueDate}; balance due ${input.dueDate}` : `Full balance due ${input.dueDate}`, readonly: true }] }];
+    const submitters: Record<string, unknown>[] = [{ role: clientRole, name: `${input.givenName} ${input.familyName}`, email: input.email, phone: input.phone || undefined, order: 0, require_email_2fa: true, external_id: input.workflowId, metadata: { fortress_workflow: workflowToken, fortress_workflow_kind: "engagement" }, fields: [{ name: "Client Name", default_value: `${input.givenName} ${input.familyName}`, readonly: true }, { name: "Client Company", default_value: input.company, readonly: true }, { name: "Invoice Number", default_value: input.invoiceNumber, readonly: true }, { name: "Service Description", default_value: `${input.description}\n\n${payerAuthorizationStatement(input)}`, readonly: true }, { name: "Total Amount", default_value: (total / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }), readonly: true }, { name: "Payment Schedule", default_value: input.depositPercent > 0 ? `${input.depositPercent}% deposit due ${input.depositDueDate}; balance due ${input.dueDate}` : `Full balance due ${input.dueDate}`, readonly: true }] }];
     if (process.env.DOCUSEAL_FIRM_SIGNER_EMAIL && process.env.DOCUSEAL_FIRM_SIGNER_NAME) submitters.push({ role: process.env.DOCUSEAL_FIRM_ROLE || "Fortress", name: process.env.DOCUSEAL_FIRM_SIGNER_NAME, email: process.env.DOCUSEAL_FIRM_SIGNER_EMAIL, order: 1, require_email_2fa: true, external_id: `${input.workflowId}:firm` });
     let created: CreatedSubmitter[];
     try {

@@ -7,6 +7,7 @@ import {
   type AttributeValue,
 } from "@aws-sdk/client-dynamodb";
 import type { CheckAction, CheckState } from "@/lib/check-workflow";
+import { randomUUID } from "node:crypto";
 
 export type CheckAuditEntry = {
   action: CheckAction;
@@ -39,6 +40,8 @@ export type BillingEventRecord = {
   eventCreatedAt?: string;
   receivedAt: string;
 };
+
+export type BillingEventEffectLease = { eventId: string; effect: string; token: string; leaseUntil: number };
 
 export type BillingEngagementRecord = {
   itemType: "ENGAGEMENT";
@@ -210,6 +213,52 @@ export async function putBillingEventIfAbsent(record: BillingEventRecord): Promi
     return true;
   } catch (cause) {
     if (cause && typeof cause === "object" && "name" in cause && cause.name === "ConditionalCheckFailedException") return false;
+    throw cause;
+  }
+}
+
+export async function acquireBillingEventEffect(eventId: string, effect: string): Promise<
+  { state: "ACQUIRED"; lease: BillingEventEffectLease } | { state: "COMPLETED" | "BUSY" }
+> {
+  if (!eventId || eventId.length > 191 || !/^[A-Z_]{2,64}$/.test(effect)) throw new Error("Billing event effect is invalid");
+  const { tableName, client: dynamo } = settings();
+  const now = Date.now();
+  const lease: BillingEventEffectLease = { eventId, effect, token: randomUUID(), leaseUntil: now + 90_000 };
+  const effectPk = `EVENT_EFFECT#${eventId}#${effect}`;
+  try {
+    await dynamo.send(new PutItemCommand({
+      TableName: tableName,
+      Item: {
+        pk: string(effectPk), itemType: string("EVENT_EFFECT"), eventId: string(eventId), effect: string(effect),
+        state: string("PROCESSING"), leaseToken: string(lease.token), leaseUntil: number(lease.leaseUntil), updatedAt: string(new Date(now).toISOString()),
+      },
+      ConditionExpression: "attribute_not_exists(#pk) OR (#state = :processing AND #leaseUntil < :now)",
+      ExpressionAttributeNames: { "#pk": "pk", "#state": "state", "#leaseUntil": "leaseUntil" },
+      ExpressionAttributeValues: { ":processing": string("PROCESSING"), ":now": number(now) },
+    }));
+    return { state: "ACQUIRED", lease };
+  } catch (cause) {
+    if (!(cause && typeof cause === "object" && "name" in cause && cause.name === "ConditionalCheckFailedException")) throw cause;
+    const result = await dynamo.send(new GetItemCommand({ TableName: tableName, Key: { pk: string(effectPk) }, ConsistentRead: true }));
+    return { state: result.Item?.state?.S === "COMPLETED" ? "COMPLETED" : "BUSY" };
+  }
+}
+
+export async function completeBillingEventEffect(lease: BillingEventEffectLease) {
+  const { tableName, client: dynamo } = settings();
+  try {
+    await dynamo.send(new PutItemCommand({
+      TableName: tableName,
+      Item: {
+        pk: string(`EVENT_EFFECT#${lease.eventId}#${lease.effect}`), itemType: string("EVENT_EFFECT"), eventId: string(lease.eventId), effect: string(lease.effect),
+        state: string("COMPLETED"), completedAt: string(new Date().toISOString()),
+      },
+      ConditionExpression: "#state = :processing AND #leaseToken = :token",
+      ExpressionAttributeNames: { "#state": "state", "#leaseToken": "leaseToken" },
+      ExpressionAttributeValues: { ":processing": string("PROCESSING"), ":token": string(lease.token) },
+    }));
+  } catch (cause) {
+    if (cause && typeof cause === "object" && "name" in cause && cause.name === "ConditionalCheckFailedException") throw new BillingOperationConflictError();
     throw cause;
   }
 }

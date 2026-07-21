@@ -55,7 +55,9 @@ export async function middleware(request: NextRequest) {
       }
       if (split > 0 && same(decoded.slice(0, split), expectedUser) && same(decoded.slice(split + 1), expectedPassword)) {
         attempts.delete(key);
-        const next = NextResponse.next();
+        const headers = new Headers(request.headers);
+        headers.set("x-fortress-actor", expectedUser);
+        const next = NextResponse.next({ request: { headers } });
         next.headers.set("Cache-Control", "private, no-store, max-age=0");
         next.headers.set("X-Robots-Tag", "noindex, nofollow");
         return next;
@@ -68,6 +70,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/internal/invoices/:path*", "/api/internal/invoices/:path*", "/api/internal/engagements/:path*", "/api/internal/checks/:path*", "/api/internal/refunds/:path*", "/api/internal/operations/:path*"],
+  matcher: ["/internal/invoices/:path*", "/api/internal/invoices/:path*", "/api/internal/engagements/:path*", "/api/internal/checks/:path*", "/api/internal/refunds/:path*", "/api/internal/operations/:path*", "/api/internal/acceptances/:path*", "/api/internal/disputes/:path*"],
   runtime: "nodejs",
 };

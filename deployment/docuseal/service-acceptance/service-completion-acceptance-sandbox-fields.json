@@ -1,0 +1,283 @@
+{
+  "roles": [
+    "Client"
+  ],
+  "fields": [
+    {
+      "name": "Client Name",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.298104,
+          "w": 0.660131,
+          "h": 0.032828,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Client Company",
+      "role": "Client",
+      "type": "text",
+      "required": false,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.325376,
+          "w": 0.660131,
+          "h": 0.032828,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Invoice Number",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.352649,
+          "w": 0.660131,
+          "h": 0.032828,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Completion Record ID",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.379922,
+          "w": 0.660131,
+          "h": 0.032828,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Service or Milestone",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.410124,
+          "w": 0.660131,
+          "h": 0.037879,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Delivery Date",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.445376,
+          "w": 0.660131,
+          "h": 0.032828,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Delivery Method",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.472649,
+          "w": 0.660131,
+          "h": 0.032828,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Delivered To",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.499922,
+          "w": 0.660131,
+          "h": 0.032828,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Completed Deliverables",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": true,
+      "readonly": true,
+      "areas": [
+        {
+          "x": 0.248366,
+          "y": 0.535326,
+          "w": 0.660131,
+          "h": 0.065657,
+          "page": 0
+        }
+      ]
+    },
+    {
+      "name": "Client Response",
+      "role": "Client",
+      "type": "select",
+      "required": true,
+      "prefillable": false,
+      "readonly": false,
+      "areas": [
+        {
+          "x": 0.316993,
+          "y": 0.562636,
+          "w": 0.591503,
+          "h": 0.035354,
+          "page": 1
+        }
+      ],
+      "options": [
+        "I acknowledge receipt and review of the listed deliverables",
+        "I am reporting an issue with the listed deliverables"
+      ]
+    },
+    {
+      "name": "Client Comments or Issue Description",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": false,
+      "readonly": false,
+      "areas": [
+        {
+          "x": 0.316993,
+          "y": 0.593798,
+          "w": 0.591503,
+          "h": 0.09596,
+          "page": 1
+        }
+      ]
+    },
+    {
+      "name": "Client Rights Initials",
+      "role": "Client",
+      "type": "initials",
+      "required": true,
+      "prefillable": false,
+      "readonly": false,
+      "areas": [
+        {
+          "x": 0.316993,
+          "y": 0.68698,
+          "w": 0.187908,
+          "h": 0.027778,
+          "page": 1
+        }
+      ]
+    },
+    {
+      "name": "Client Printed Legal Name",
+      "role": "Client",
+      "type": "text",
+      "required": true,
+      "prefillable": false,
+      "readonly": false,
+      "areas": [
+        {
+          "x": 0.260654,
+          "y": 0.780843,
+          "w": 0.245098,
+          "h": 0.027778,
+          "page": 1
+        }
+      ]
+    },
+    {
+      "name": "Client Signature",
+      "role": "Client",
+      "type": "signature",
+      "required": true,
+      "prefillable": false,
+      "readonly": false,
+      "areas": [
+        {
+          "x": 0.260654,
+          "y": 0.818369,
+          "w": 0.245098,
+          "h": 0.042929,
+          "page": 1
+        }
+      ]
+    },
+    {
+      "name": "Client Signer Title",
+      "role": "Client",
+      "type": "text",
+      "required": false,
+      "prefillable": false,
+      "readonly": false,
+      "areas": [
+        {
+          "x": 0.652418,
+          "y": 0.780843,
+          "w": 0.20915,
+          "h": 0.027778,
+          "page": 1
+        }
+      ]
+    },
+    {
+      "name": "Client Signature Date",
+      "role": "Client",
+      "type": "date",
+      "required": true,
+      "prefillable": false,
+      "readonly": false,
+      "areas": [
+        {
+          "x": 0.652418,
+          "y": 0.827207,
+          "w": 0.19281,
+          "h": 0.027778,
+          "page": 1
+        }
+      ]
+    }
+  ]
+}

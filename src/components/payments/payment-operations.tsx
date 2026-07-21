@@ -178,17 +178,17 @@ export function InvoiceActions({ invoice, onChanged }: { invoice: OperationsInvo
 
           {refundable ? (
             <section className="border-t border-[var(--line)] pt-4" aria-label={`Refund ${invoice.number}`}>
-              <h5 className="font-semibold text-red-900">Full refund</h5>
-              <p className="mt-1 text-xs leading-5 text-[var(--muted)]">Available only when one completed card payment paid the invoice in full. Deposit/balance schedules, ACH, check, cash, external, or multiple payments require a manual Square refund procedure. A refund cannot be undone.</p>
+              <h5 className="font-semibold text-red-900">Refund review</h5>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted)]">First verify eligibility with Square. Automated refunds are available only when one completed card payment paid the invoice in full. Deposit/balance schedules, ACH, check, cash, external, or multiple payments require a manual Square refund procedure.</p>
               <div className="mt-3 grid gap-3">
-                <label className="text-xs font-semibold">Reason<input className={inputClass} value={refundReason} onChange={(event) => { setRefundReason(event.target.value); setRefundPreview(null); }} maxLength={140} /></label>
-                <label className="text-xs font-semibold">Unique refund reference<input className={inputClass} value={refundReference} onChange={(event) => { setRefundReference(event.target.value); setRefundPreview(null); }} placeholder="RF-2026-001" maxLength={64} /></label>
-                {!refundPreview ? <button disabled={loading || refundReason.length < 5 || refundReference.length < 4} type="button" onClick={() => void prepareRefund()} className="btn btn-secondary justify-center disabled:opacity-40">Prepare exact refund amount from Square</button> : (
+                {!refundPreview ? <button disabled={loading} type="button" onClick={() => void prepareRefund()} className="btn btn-secondary justify-center disabled:opacity-40">Check Square eligibility and exact amount</button> : (
                   <>
                     <p className="rounded-lg border border-red-800/20 bg-red-50 p-3 text-sm font-semibold text-red-950">Exact current refund: ${(refundPreview.amount / 100).toFixed(2)} {refundPreview.currency}</p>
+                    <label className="text-xs font-semibold">Reason<input className={inputClass} value={refundReason} onChange={(event) => setRefundReason(event.target.value)} maxLength={140} /></label>
+                    <label className="text-xs font-semibold">Unique refund reference<input className={inputClass} value={refundReference} onChange={(event) => setRefundReference(event.target.value)} placeholder="RF-2026-001" maxLength={64} /></label>
                     <label className="text-xs font-semibold">Type {invoice.number} to confirm<input className={inputClass} value={refundConfirmation} onChange={(event) => setRefundConfirmation(event.target.value)} /></label>
                     <label className="flex items-start gap-2 text-xs leading-5 text-[var(--muted)]"><input className="mt-1" type="checkbox" checked={refundConfirmed} onChange={(event) => setRefundConfirmed(event.target.checked)} />I authorize this exact ${(refundPreview.amount / 100).toFixed(2)} refund to the original card.</label>
-                    <button disabled={loading || !refundConfirmed || refundConfirmation !== invoice.number} type="button" onClick={() => void refund()} className="btn justify-center !bg-red-900 !text-white disabled:opacity-40">Issue exact full refund — ${(refundPreview.amount / 100).toFixed(2)}</button>
+                    <button disabled={loading || !refundConfirmed || refundConfirmation !== invoice.number || refundReason.length < 5 || refundReference.length < 4} type="button" onClick={() => void refund()} className="btn justify-center !bg-red-900 !text-white disabled:opacity-40">Issue exact full refund — ${(refundPreview.amount / 100).toFixed(2)}</button>
                   </>
                 )}
               </div>

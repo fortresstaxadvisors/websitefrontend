@@ -527,7 +527,7 @@ fortress_deploy_billing_sandbox() (
     --secret-string "file://${updated_secret_file}" \
     >/dev/null
 
-  unset square_token square_signature secret_json docuseal_hmac
+  unset square_token square_signature secret_json
   echo "Stored the real Square and DocuSeal webhook verification secrets."
   sleep 35
 
@@ -569,8 +569,8 @@ fortress_deploy_billing_sandbox() (
   echo "Sandbox deployment and signed webhook verification passed."
 )
 
-fortress_status=0
-fortress_deploy_billing_sandbox || fortress_status=$?
+fortress_deploy_billing_sandbox
+fortress_status=$?
 
 # Clear the previously authorized one-time transport material from the current
 # CloudShell session even when deployment fails.

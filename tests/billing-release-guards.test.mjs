@@ -40,6 +40,16 @@ test("repeat Sandbox releases reuse the stored DocuSeal webhook secret", () => {
   assert.match(script, /Reusing the existing DocuSeal webhook verification secret/);
 });
 
+test("Sandbox release failures cannot fall through to a false success", () => {
+  const script = read("scripts/deploy-billing-sandbox-cloudshell.sh");
+  const earlyUnsetAt = script.indexOf("unset square_token square_signature secret_json");
+  const docusealVerificationAt = script.indexOf("docuseal_hmac_header=");
+  assert.ok(earlyUnsetAt > 0 && docusealVerificationAt > earlyUnsetAt);
+  assert.doesNotMatch(script.slice(earlyUnsetAt, docusealVerificationAt), /unset[^\n]*docuseal_hmac/);
+  assert.doesNotMatch(script, /fortress_deploy_billing_sandbox \|\|/);
+  assert.match(script, /fortress_deploy_billing_sandbox\nfortress_status=\$\?/);
+});
+
 test("staff-added dispute evidence is bounded and locked after submission", () => {
   const evidence = read("src/app/api/internal/disputes/evidence/route.ts");
   const cases = read("src/app/api/internal/disputes/route.ts");

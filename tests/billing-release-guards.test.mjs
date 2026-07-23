@@ -31,6 +31,15 @@ test("full Sandbox release requires the service-acceptance template ID", () => {
   assert.match(script, /if \[\[ ! "\$service_acceptance_template_id" =~ \^\[1-9\]\[0-9\]\*\$ \]\]/);
 });
 
+test("repeat Sandbox releases reuse the stored DocuSeal webhook secret", () => {
+  const script = read("scripts/deploy-billing-sandbox-cloudshell.sh");
+  const secretReadAt = script.indexOf("existing_secret_json=");
+  const transportAt = script.indexOf("aws sqs create-queue");
+  assert.ok(secretReadAt > 0 && transportAt > secretReadAt, "Secrets Manager must be checked before opening a transport queue");
+  assert.match(script, /if \[\[ "\$docuseal_hmac" == whsec_\* \]\]/);
+  assert.match(script, /Reusing the existing DocuSeal webhook verification secret/);
+});
+
 test("staff-added dispute evidence is bounded and locked after submission", () => {
   const evidence = read("src/app/api/internal/disputes/evidence/route.ts");
   const cases = read("src/app/api/internal/disputes/route.ts");

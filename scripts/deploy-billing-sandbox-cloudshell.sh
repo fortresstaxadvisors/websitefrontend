@@ -211,70 +211,84 @@ fortress_deploy_billing_sandbox() (
       >/dev/null 2>&1 || true
   fi
 
-  echo "Opening an encrypted, five-minute one-time secret transport from the DocuSeal host..."
-  queue_url="$(
-    aws sqs create-queue \
+  local lightsail_role_arn queue_arn queue_policy message receipt_handle docuseal_hmac existing_secret_json
+  existing_secret_json="$(
+    aws secretsmanager get-secret-value \
       --region "$AWS_REGION" \
-      --queue-name "$TRANSPORT_QUEUE_NAME" \
-      --attributes MessageRetentionPeriod=300,VisibilityTimeout=30,SqsManagedSseEnabled=true \
-      --query QueueUrl \
+      --secret-id "$SECRET_ID" \
+      --query SecretString \
       --output text
   )"
-  local lightsail_role_arn queue_arn queue_policy message receipt_handle docuseal_hmac
-  lightsail_role_arn="$(
-    aws iam get-role \
-      --role-name AmazonLightsailInstanceRole \
-      --query Role.Arn \
-      --output text
-  )"
-  queue_arn="arn:aws:sqs:${AWS_REGION}:${account_id}:${TRANSPORT_QUEUE_NAME}"
-  queue_policy="$(
-    jq -cn \
-      --arg queue "$queue_arn" \
-      --arg principal "$lightsail_role_arn" \
-      '{
-        Version:"2012-10-17",
-        Statement:[{
-          Sid:"OneTimeDocuSealSecretTransport",
-          Effect:"Allow",
-          Principal:{AWS:$principal},
-          Action:"sqs:SendMessage",
-          Resource:$queue
-        }]
-      }'
-  )"
-  jq -n --arg policy "$queue_policy" '{Policy:$policy}' >"${temp_dir}/queue-attributes.json"
-  aws sqs set-queue-attributes \
-    --region "$AWS_REGION" \
-    --queue-url "$queue_url" \
-    --attributes "file://${temp_dir}/queue-attributes.json" \
-    >/dev/null
+  docuseal_hmac="$(jq -er '.DOCUSEAL_WEBHOOK_SECRET // empty' <<<"$existing_secret_json" 2>/dev/null || true)"
 
-  message="null"
-  for _ in {1..6}; do
-    message="$(
-      aws sqs receive-message \
+  if [[ "$docuseal_hmac" == whsec_* ]]; then
+    echo "Reusing the existing DocuSeal webhook verification secret from Secrets Manager."
+  else
+    echo "Opening an encrypted, five-minute one-time secret transport from the DocuSeal host..."
+    queue_url="$(
+      aws sqs create-queue \
         --region "$AWS_REGION" \
-        --queue-url "$queue_url" \
-        --wait-time-seconds 20 \
-        --max-number-of-messages 1 \
-        --query 'Messages[0]' \
-        --output json
+        --queue-name "$TRANSPORT_QUEUE_NAME" \
+        --attributes MessageRetentionPeriod=300,VisibilityTimeout=30,SqsManagedSseEnabled=true \
+        --query QueueUrl \
+        --output text
     )"
-    [[ "$message" != "null" ]] && break
-  done
-  [[ "$message" != "null" ]]
-  receipt_handle="$(jq -er '.ReceiptHandle' <<<"$message")"
-  docuseal_hmac="$(jq -er '.Body | fromjson | .DOCUSEAL_WEBHOOK_SECRET' <<<"$message")"
-  aws sqs delete-message \
-    --region "$AWS_REGION" \
-    --queue-url "$queue_url" \
-    --receipt-handle "$receipt_handle" \
-    >/dev/null
-  [[ "$docuseal_hmac" == whsec_* ]]
-  unset message receipt_handle queue_policy lightsail_role_arn
-  aws sqs delete-queue --region "$AWS_REGION" --queue-url "$queue_url" >/dev/null
-  queue_url=""
+    lightsail_role_arn="$(
+      aws iam get-role \
+        --role-name AmazonLightsailInstanceRole \
+        --query Role.Arn \
+        --output text
+    )"
+    queue_arn="arn:aws:sqs:${AWS_REGION}:${account_id}:${TRANSPORT_QUEUE_NAME}"
+    queue_policy="$(
+      jq -cn \
+        --arg queue "$queue_arn" \
+        --arg principal "$lightsail_role_arn" \
+        '{
+          Version:"2012-10-17",
+          Statement:[{
+            Sid:"OneTimeDocuSealSecretTransport",
+            Effect:"Allow",
+            Principal:{AWS:$principal},
+            Action:"sqs:SendMessage",
+            Resource:$queue
+          }]
+        }'
+    )"
+    jq -n --arg policy "$queue_policy" '{Policy:$policy}' >"${temp_dir}/queue-attributes.json"
+    aws sqs set-queue-attributes \
+      --region "$AWS_REGION" \
+      --queue-url "$queue_url" \
+      --attributes "file://${temp_dir}/queue-attributes.json" \
+      >/dev/null
+
+    message="null"
+    for _ in {1..6}; do
+      message="$(
+        aws sqs receive-message \
+          --region "$AWS_REGION" \
+          --queue-url "$queue_url" \
+          --wait-time-seconds 20 \
+          --max-number-of-messages 1 \
+          --query 'Messages[0]' \
+          --output json
+      )"
+      [[ "$message" != "null" ]] && break
+    done
+    [[ "$message" != "null" ]]
+    receipt_handle="$(jq -er '.ReceiptHandle' <<<"$message")"
+    docuseal_hmac="$(jq -er '.Body | fromjson | .DOCUSEAL_WEBHOOK_SECRET' <<<"$message")"
+    aws sqs delete-message \
+      --region "$AWS_REGION" \
+      --queue-url "$queue_url" \
+      --receipt-handle "$receipt_handle" \
+      >/dev/null
+    [[ "$docuseal_hmac" == whsec_* ]]
+    unset message receipt_handle queue_policy lightsail_role_arn
+    aws sqs delete-queue --region "$AWS_REGION" --queue-url "$queue_url" >/dev/null
+    queue_url=""
+  fi
+  unset existing_secret_json
 
   local current_environment reviewed_environment environment_json update_input
   current_environment="$(

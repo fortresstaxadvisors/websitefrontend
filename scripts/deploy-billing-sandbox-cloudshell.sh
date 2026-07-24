@@ -156,6 +156,29 @@ fortress_deploy_billing_sandbox() (
     --policy-document "file://${evidence_policy}" \
     >/dev/null
 
+  echo "Granting the Sandbox runtime narrowly scoped transactional-email access..."
+  local transactional_email_policy transactional_identity_arn
+  transactional_identity_arn="arn:aws:ses:${AWS_REGION}:${account_id}:identity/fortresstaxadvisors.com"
+  transactional_email_policy="${temp_dir}/billing-transactional-email-policy.json"
+  jq -n \
+    --arg identity "$transactional_identity_arn" \
+    --arg from "engagements@fortresstaxadvisors.com" \
+    '{
+      Version:"2012-10-17",
+      Statement:[{
+        Sid:"FortressSandboxInvoiceEmail",
+        Effect:"Allow",
+        Action:"ses:SendEmail",
+        Resource:$identity,
+        Condition:{StringEquals:{"ses:FromAddress":$from}}
+      }]
+    }' >"$transactional_email_policy"
+  aws iam put-role-policy \
+    --role-name "$COMPUTE_ROLE" \
+    --policy-name "fortress-billing-sandbox-transactional-email" \
+    --policy-document "file://${transactional_email_policy}" \
+    >/dev/null
+
   local dispute_alert_topic_arn="" dispute_alert_policy subscriptions_json
   if [[ -n "$dispute_alert_recipients" ]]; then
     echo "Creating or locating the standard SNS dispute-alert topic..."
@@ -323,6 +346,9 @@ fortress_deploy_billing_sandbox() (
         SQUARE_SANDBOX_SKIP_ATTACHMENTS: "true",
         SQUARE_ENABLE_ACH: "true",
         FORTRESS_REFUNDS_ENABLED: "true",
+        FORTRESS_SANDBOX_INVOICE_EMAIL: "true",
+        FORTRESS_TRANSACTIONAL_EMAIL_FROM: "engagements@fortresstaxadvisors.com",
+        FORTRESS_TRANSACTIONAL_EMAIL_REPLY_TO: "clientservice@fortresstaxadvisors.com",
         FORTRESS_BILLING_OPERATIONS_TABLE: $operations_table,
         FORTRESS_BILLING_EVIDENCE_BUCKET: $evidence_bucket,
         SQUARE_WEBHOOK_NOTIFICATION_URL: $square_webhook,
@@ -333,7 +359,7 @@ fortress_deploy_billing_sandbox() (
         DOCUSEAL_FIRM_SIGNER_NAME: "Omer Muhammad",
         DOCUSEAL_FIRM_SIGNER_EMAIL: "omer@fortresstaxadvisors.com",
         DOCUSEAL_REPLY_TO: "clientservice@fortresstaxadvisors.com",
-        DOCUSEAL_SANDBOX_SEND_EMAIL: "false"
+        DOCUSEAL_SANDBOX_SEND_EMAIL: "true"
       }
       + (if $service_acceptance_template == "" then {} else {DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID:$service_acceptance_template} end)
       + (if $dispute_recipients == "" then {} else {FORTRESS_DISPUTE_ALERT_TOPIC_ARN:$dispute_topic} end)'

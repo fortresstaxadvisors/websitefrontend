@@ -135,3 +135,27 @@ test("provisions idempotent SNS email alerts with exact-topic publish access", (
   assert.match(script, /must confirm the AWS subscription email before alerts can arrive/);
   assert.doesNotMatch(script, /Action:"sns:\*"/);
 });
+
+test("enables DocuSeal invitations for human Sandbox testing", () => {
+  const script = readFileSync(new URL("../scripts/deploy-billing-sandbox-cloudshell.sh", import.meta.url), "utf8");
+  assert.match(script, /DOCUSEAL_SANDBOX_SEND_EMAIL:\s*"true"/);
+  assert.match(buildRuntimeConfig(environment({ DOCUSEAL_SANDBOX_SEND_EMAIL: "true" })), /DOCUSEAL_SANDBOX_SEND_EMAIL="true"/);
+});
+
+test("enables a safe Fortress invoice-link email without leaving Square Sandbox", () => {
+  const script = readFileSync(new URL("../scripts/deploy-billing-sandbox-cloudshell.sh", import.meta.url), "utf8");
+  assert.match(script, /FORTRESS_SANDBOX_INVOICE_EMAIL:\s*"true"/);
+  assert.match(script, /Action:"ses:SendEmail"/);
+  assert.match(script, /"ses:FromAddress"/);
+  assert.match(script, /SQUARE_ENVIRONMENT:\s*"sandbox"/);
+  assert.doesNotMatch(script, /SQUARE_ENVIRONMENT:\s*"production"/);
+  const output = buildRuntimeConfig(environment({
+    FORTRESS_SANDBOX_INVOICE_EMAIL: "true",
+    FORTRESS_TRANSACTIONAL_EMAIL_FROM: "engagements@fortresstaxadvisors.com",
+    FORTRESS_TRANSACTIONAL_EMAIL_REPLY_TO: "clientservice@fortresstaxadvisors.com",
+  }));
+  assert.match(output, /FORTRESS_SANDBOX_INVOICE_EMAIL="true"/);
+  assert.throws(() => buildRuntimeConfig(environment({
+    FORTRESS_SANDBOX_INVOICE_EMAIL: "true",
+  })), /TRANSACTIONAL_EMAIL_FROM/);
+});

@@ -33,6 +33,9 @@ const optional = [
   "DOCUSEAL_SANDBOX_SEND_EMAIL",
   "DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID",
   "FORTRESS_DISPUTE_ALERT_TOPIC_ARN",
+  "FORTRESS_SANDBOX_INVOICE_EMAIL",
+  "FORTRESS_TRANSACTIONAL_EMAIL_FROM",
+  "FORTRESS_TRANSACTIONAL_EMAIL_REPLY_TO",
 ];
 
 function httpsUrl(value, key) {
@@ -73,8 +76,14 @@ export function buildRuntimeConfig(environment = process.env) {
   } else if (new URL(values.PAYMENT_BASE_URL).origin === "https://fortresstaxadvisors.com") {
     throw new Error("Sandbox PAYMENT_BASE_URL cannot use the production origin");
   }
-  for (const key of ["SQUARE_SANDBOX_SKIP_ATTACHMENTS", "SQUARE_ENABLE_ACH", "FORTRESS_REFUNDS_ENABLED"]) {
+  for (const key of ["SQUARE_SANDBOX_SKIP_ATTACHMENTS", "SQUARE_ENABLE_ACH", "FORTRESS_REFUNDS_ENABLED", "FORTRESS_SANDBOX_INVOICE_EMAIL"]) {
     if (values[key] && !new Set(["true", "false"]).has(values[key])) throw new Error(`${key} must be true or false`);
+  }
+  if (values.FORTRESS_SANDBOX_INVOICE_EMAIL === "true") {
+    if (values.FORTRESS_DEPLOYMENT_STAGE !== "sandbox") throw new Error("Sandbox invoice email cannot be enabled in production");
+    for (const key of ["FORTRESS_TRANSACTIONAL_EMAIL_FROM", "FORTRESS_TRANSACTIONAL_EMAIL_REPLY_TO"]) {
+      if (!values[key] || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(values[key])) throw new Error(`${key} must be a valid email address`);
+    }
   }
   if (values.FORTRESS_BILLING_OPERATIONS_TABLE && !/^[A-Za-z0-9_.-]{3,255}$/.test(values.FORTRESS_BILLING_OPERATIONS_TABLE)) throw new Error("FORTRESS_BILLING_OPERATIONS_TABLE is invalid");
   if (values.FORTRESS_BILLING_EVIDENCE_BUCKET && (

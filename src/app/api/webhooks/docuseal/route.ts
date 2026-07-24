@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { readBillingWorkflowToken } from "@/lib/billing-workflow-token";
-import { completeEngagementWorkflow, getEngagementWorkflow } from "@/lib/billing-operations-store";
+import {
+  acquireBillingEventEffect,
+  completeBillingEventEffect,
+  completeEngagementWorkflow,
+  getEngagementWorkflow,
+} from "@/lib/billing-operations-store";
 import {
   isServiceAcceptanceSubmission,
   serviceAcceptanceOutcome,
@@ -13,6 +18,7 @@ import { getBillingEvidenceIndex, putBillingEvidenceIndex } from "@/lib/evidence
 import { docusealFetch } from "@/lib/docuseal";
 import { createSquareInvoice } from "@/lib/invoicing";
 import { getRuntimeSecrets } from "@/lib/runtime-secrets";
+import { sendSandboxInvoiceReadyEmail } from "@/lib/sandbox-invoice-email";
 import {
   advanceServiceAcceptance,
   getServiceAcceptance,
@@ -229,6 +235,24 @@ async function completeEngagement(submissionId: number, submission: Submission) 
       ...(input.authorizedPayerEmail ? { authorizedPayerEmail: input.authorizedPayerEmail } : {}),
       agreementArtifact, ...(auditArtifact ? { auditArtifact } : {}), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     });
+  }
+  if (process.env.FORTRESS_DEPLOYMENT_STAGE === "sandbox"
+    && process.env.FORTRESS_SANDBOX_INVOICE_EMAIL === "true") {
+    const emailEffect = await acquireBillingEventEffect(
+      `docuseal:${submissionId}:${invoice.invoiceId}`,
+      "SANDBOX_INVOICE_EMAIL",
+    );
+    if (emailEffect.state === "BUSY") throw new Error("Sandbox invoice email is already processing; retry required");
+    if (emailEffect.state === "ACQUIRED") {
+      await sendSandboxInvoiceReadyEmail({
+        clientName: `${input.givenName} ${input.familyName}`,
+        email: input.email,
+        invoiceNumber: input.invoiceNumber,
+        title: input.title,
+        publicUrl: invoice.publicUrl,
+      });
+      await completeBillingEventEffect(emailEffect.lease);
+    }
   }
   console.info("[docuseal] completed engagement created Square invoice", JSON.stringify({ submissionId, workflowId: input.workflowId, invoiceNumber: input.invoiceNumber }));
 }

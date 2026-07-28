@@ -18,6 +18,7 @@ const required = [
 const optional = [
   "FORTRESS_SECRET_CACHE_TTL_SECONDS",
   "SQUARE_SANDBOX_SKIP_ATTACHMENTS",
+  "SQUARE_LOCATION_TIME_ZONE",
   "SQUARE_ENABLE_ACH",
   "FORTRESS_REFUNDS_ENABLED",
   "FORTRESS_BILLING_OPERATIONS_TABLE",
@@ -65,6 +66,10 @@ export function buildRuntimeConfig(environment = process.env) {
   if (!new URL(values.DOCUSEAL_BASE_URL).pathname.replace(/\/$/, "").endsWith("/api")) throw new Error("DOCUSEAL_BASE_URL must end in /api");
   if (!values.FORTRESS_RUNTIME_SECRET_ID.toLowerCase().includes(values.FORTRESS_DEPLOYMENT_STAGE)) throw new Error("FORTRESS_RUNTIME_SECRET_ID must identify the deployment stage");
   if (values.FORTRESS_DEPLOYMENT_STAGE !== values.SQUARE_ENVIRONMENT) throw new Error("Deployment stage and Square environment must match");
+  if (values.SQUARE_LOCATION_TIME_ZONE) {
+    try { new Intl.DateTimeFormat("en-US", { timeZone: values.SQUARE_LOCATION_TIME_ZONE }).format(); }
+    catch { throw new Error("SQUARE_LOCATION_TIME_ZONE must be a valid IANA time zone"); }
+  }
   if (values.FORTRESS_DEPLOYMENT_STAGE === "production") {
     if (new URL(values.PAYMENT_BASE_URL).origin !== "https://fortresstaxadvisors.com") throw new Error("Production PAYMENT_BASE_URL must be the canonical Fortress origin");
     if (values.SQUARE_SANDBOX_SKIP_ATTACHMENTS === "true") throw new Error("Production cannot skip signed-agreement attachments");
@@ -73,6 +78,7 @@ export function buildRuntimeConfig(environment = process.env) {
     if (!values.PAYMENT_EVENT_FORWARD_URL) throw new Error("Production requires a payment-event alert/worker endpoint");
     if (!values.DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID) throw new Error("Production requires a service-acceptance template");
     if (!values.FORTRESS_DISPUTE_ALERT_TOPIC_ARN) throw new Error("Production requires a dispute alert topic");
+    if (!values.SQUARE_LOCATION_TIME_ZONE) throw new Error("Production requires the Square location time zone");
   } else if (new URL(values.PAYMENT_BASE_URL).origin === "https://fortresstaxadvisors.com") {
     throw new Error("Sandbox PAYMENT_BASE_URL cannot use the production origin");
   }

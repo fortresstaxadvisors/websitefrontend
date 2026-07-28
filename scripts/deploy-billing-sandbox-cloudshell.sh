@@ -343,6 +343,7 @@ fortress_deploy_billing_sandbox() (
         PAYMENT_BASE_URL: $base,
         SQUARE_ENVIRONMENT: "sandbox",
         SQUARE_LOCATION_ID: $square_location,
+        SQUARE_LOCATION_TIME_ZONE: "UTC",
         SQUARE_SANDBOX_SKIP_ATTACHMENTS: "true",
         SQUARE_ENABLE_ACH: "true",
         FORTRESS_REFUNDS_ENABLED: "true",

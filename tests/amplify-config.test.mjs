@@ -11,6 +11,7 @@ function environment(overrides = {}) {
     PAYMENT_BASE_URL: "https://test.fortresstaxadvisors.com",
     SQUARE_ENVIRONMENT: "sandbox",
     SQUARE_LOCATION_ID: "sandbox-location",
+    SQUARE_LOCATION_TIME_ZONE: "UTC",
     SQUARE_WEBHOOK_NOTIFICATION_URL: "https://test.fortresstaxadvisors.com/api/webhooks/square",
     DOCUSEAL_BASE_URL: "https://sign-test.fortresstaxadvisors.com/api",
     DOCUSEAL_ENGAGEMENT_TEMPLATE_ID: "42",
@@ -26,6 +27,7 @@ test("writes only reviewed non-secret configuration", () => {
   }));
   assert.match(output, /FORTRESS_RUNTIME_SECRET_ID=/);
   assert.match(output, /SQUARE_LOCATION_ID=/);
+  assert.match(output, /SQUARE_LOCATION_TIME_ZONE="UTC"/);
   assert.doesNotMatch(output, /must-not-be-written|SQUARE_ACCESS_TOKEN|DOCUSEAL_API_TOKEN/);
 });
 

@@ -65,6 +65,7 @@ test("late signatures cannot strand Square invoice creation on stale due dates",
   assert.match(invoicing, /const balanceDueDate = input\.dueDate < today \? today : input\.dueDate/);
   assert.match(invoicing, /const depositDueDate = input\.depositDueDate < today \? today : input\.depositDueDate/);
   assert.match(invoicing, /const includeDeposit = input\.depositPercent > 0 && depositDueDate < balanceDueDate/);
+  assert.match(invoicing, /process\.env\.SQUARE_LOCATION_TIME_ZONE/);
   assert.match(invoicing, /Because a separate deposit is no longer due before the balance/);
   assert.match(invoicing, /existingSquareInvoiceForOrder\(orderData\.order\.id, locationId\)/);
   assert.match(invoicing, /invoice-schedule-v2:\$\{schedule\.includeDeposit \? "deposit" : "balance"\}:\$\{schedule\.depositDueDate\}:\$\{schedule\.balanceDueDate\}/);

@@ -17,7 +17,7 @@ type SquareInvoice = { id: string; version: number; invoice_number?: string; ord
 
 const text = (form: FormData, key: string) => { const value = form.get(key); return typeof value === "string" ? value.trim() : ""; };
 const validDate = (input: string) => /^\d{4}-\d{2}-\d{2}$/.test(input) && !Number.isNaN(Date.parse(`${input}T12:00:00Z`));
-const fortressToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const squareToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: process.env.SQUARE_LOCATION_TIME_ZONE || "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 function normalizePhone(input: string) { if (!input) return ""; const digits = input.replace(/\D/g, ""); if (digits.length === 10) return `+1${digits}`; if (digits.length >= 9 && digits.length <= 16) return `+${digits}`; throw new Error("Phone must include a valid country code or a 10-digit US number"); }
 
 export function parseInvoiceForm(form: FormData): InvoiceInput {
@@ -28,7 +28,7 @@ export function parseInvoiceForm(form: FormData): InvoiceInput {
   const payerRelationship = text(form, "payerRelationship");
   const authorizedPayerName = text(form, "authorizedPayerName");
   const authorizedPayerEmail = text(form, "authorizedPayerEmail").toLowerCase();
-  const today = fortressToday();
+  const today = squareToday();
   if (!givenName || givenName.length > 80 || !familyName || familyName.length > 80 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email !== confirmEmail || !/^[A-Za-z0-9._-]{4,64}$/.test(invoiceNumber) || !title || title.length > 128 || description.length < 20 || description.length > 1500 || company.length > 191 || !validDate(dueDate) || dueDate < today || text(form, "confirmed") !== "yes") throw new Error("Complete every required field, confirm the client email, and use a current or future due date");
   if (!Number.isFinite(depositPercent) || depositPercent < 0 || depositPercent > 90 || (depositPercent > 0 && (!validDate(depositDueDate) || depositDueDate < today || depositDueDate >= dueDate))) throw new Error("A deposit must be due today or later and before the balance due date");
   if (!new Set(["SIGNER", "AUTHORIZED_BUSINESS_PAYER", "AUTHORIZED_THIRD_PARTY"]).has(payerRelationship)) throw new Error("Select who is authorized to make the payment");
@@ -50,7 +50,7 @@ export function payerAuthorizationStatement(input: InvoiceInput) {
 
 const key = (workflowId: string, stage: string) => createHash("sha256").update(`${workflowId}:${stage}`).digest("hex").slice(0, 45);
 
-export function squareInvoiceSchedule(input: InvoiceInput, today = fortressToday()) {
+export function squareInvoiceSchedule(input: InvoiceInput, today = squareToday()) {
   const balanceDueDate = input.dueDate < today ? today : input.dueDate;
   const depositDueDate = input.depositDueDate < today ? today : input.depositDueDate;
   const includeDeposit = input.depositPercent > 0 && depositDueDate < balanceDueDate;

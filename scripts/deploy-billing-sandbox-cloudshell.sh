@@ -157,11 +157,9 @@ fortress_deploy_billing_sandbox() (
     >/dev/null
 
   echo "Granting the Sandbox runtime narrowly scoped transactional-email access..."
-  local transactional_email_policy transactional_identity_arn
-  transactional_identity_arn="arn:aws:ses:${AWS_REGION}:${account_id}:identity/fortresstaxadvisors.com"
+  local transactional_email_policy installed_transactional_email_policy
   transactional_email_policy="${temp_dir}/billing-transactional-email-policy.json"
   jq -n \
-    --arg identity "$transactional_identity_arn" \
     --arg from "engagements@fortresstaxadvisors.com" \
     '{
       Version:"2012-10-17",
@@ -169,7 +167,7 @@ fortress_deploy_billing_sandbox() (
         Sid:"FortressSandboxInvoiceEmail",
         Effect:"Allow",
         Action:"ses:SendEmail",
-        Resource:$identity,
+        Resource:"*",
         Condition:{StringEquals:{"ses:FromAddress":$from}}
       }]
     }' >"$transactional_email_policy"
@@ -177,6 +175,22 @@ fortress_deploy_billing_sandbox() (
     --role-name "$COMPUTE_ROLE" \
     --policy-name "fortress-billing-sandbox-transactional-email" \
     --policy-document "file://${transactional_email_policy}" \
+    >/dev/null
+  installed_transactional_email_policy="$(
+    aws iam get-role-policy \
+      --role-name "$COMPUTE_ROLE" \
+      --policy-name "fortress-billing-sandbox-transactional-email" \
+      --query PolicyDocument \
+      --output json
+  )"
+  jq -e \
+    --arg from "engagements@fortresstaxadvisors.com" \
+    '.Statement | length == 1
+      and .[0].Effect == "Allow"
+      and .[0].Action == "ses:SendEmail"
+      and .[0].Resource == "*"
+      and .[0].Condition.StringEquals["ses:FromAddress"] == $from' \
+    <<<"$installed_transactional_email_policy" \
     >/dev/null
 
   local dispute_alert_topic_arn="" dispute_alert_policy subscriptions_json

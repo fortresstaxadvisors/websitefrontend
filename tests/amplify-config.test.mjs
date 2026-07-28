@@ -146,9 +146,19 @@ test("enables DocuSeal invitations for human Sandbox testing", () => {
 
 test("enables a safe Fortress invoice-link email without leaving Square Sandbox", () => {
   const script = readFileSync(new URL("../scripts/deploy-billing-sandbox-cloudshell.sh", import.meta.url), "utf8");
+  const policyStart = script.indexOf('Sid:"FortressSandboxInvoiceEmail"');
+  const policyEnd = script.indexOf("installed_transactional_email_policy=", policyStart);
+  assert.ok(policyStart >= 0 && policyEnd > policyStart);
+  const transactionalPolicy = script.slice(policyStart, policyEnd);
   assert.match(script, /FORTRESS_SANDBOX_INVOICE_EMAIL:\s*"true"/);
-  assert.match(script, /Action:"ses:SendEmail"/);
-  assert.match(script, /"ses:FromAddress"/);
+  assert.match(transactionalPolicy, /Action:"ses:SendEmail"/);
+  assert.match(transactionalPolicy, /Resource:"\*"/);
+  assert.match(transactionalPolicy, /Condition:\{StringEquals:\{"ses:FromAddress":\$from\}\}/);
+  assert.doesNotMatch(transactionalPolicy, /ses:\*/);
+  assert.doesNotMatch(transactionalPolicy, /ses:Recipients/);
+  assert.doesNotMatch(transactionalPolicy, /transactional_identity_arn|Resource:\$identity/);
+  assert.match(script, /aws iam get-role-policy/);
+  assert.match(script, /\.\[0\]\.Resource == "\*"/);
   assert.match(script, /SQUARE_ENVIRONMENT:\s*"sandbox"/);
   assert.doesNotMatch(script, /SQUARE_ENVIRONMENT:\s*"production"/);
   const output = buildRuntimeConfig(environment({

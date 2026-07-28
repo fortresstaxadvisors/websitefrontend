@@ -71,3 +71,16 @@ test("late signatures cannot strand Square invoice creation on stale due dates",
   assert.match(invoicing, /invoice-schedule-v2:\$\{schedule\.includeDeposit \? "deposit" : "balance"\}:\$\{schedule\.depositDueDate\}:\$\{schedule\.balanceDueDate\}/);
   assert.match(invoicing, /key\(input\.workflowId, invoiceStage\)/);
 });
+
+test("check records preserve the operator and permit partial checks while enough remains due", () => {
+  const route = read("src/app/api/internal/checks/route.ts");
+  const store = read("src/lib/billing-operations-store.ts");
+  const panel = read("src/components/payments/payment-operations.tsx");
+  assert.match(route, /request\.headers\.get\("x-fortress-actor"\)/);
+  assert.match(route, /outstanding < existing\.amount/);
+  assert.doesNotMatch(route, /outstanding !== existing\.amount/);
+  assert.match(route, /actor,/);
+  assert.match(store, /\.\.\.\(entry\.actor \? \{ actor: string\(entry\.actor\) \} : \{\}\)/);
+  assert.match(store, /const actor = map\.actor\?\.S/);
+  assert.match(panel, /by \$\{entry\.actor\}/);
+});

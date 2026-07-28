@@ -13,6 +13,7 @@ export type CheckAuditEntry = {
   action: CheckAction;
   state: CheckState;
   at: string;
+  actor?: string;
   note?: string;
   amount?: number;
   maskedReference?: string;
@@ -96,6 +97,7 @@ function toItem(record: BillingCheckRecord): Record<string, AttributeValue> {
           action: string(entry.action),
           state: string(entry.state),
           at: string(entry.at),
+          ...(entry.actor ? { actor: string(entry.actor) } : {}),
           ...(entry.note ? { note: string(entry.note) } : {}),
           ...(entry.amount ? { amount: number(entry.amount) } : {}),
           ...(entry.maskedReference ? { maskedReference: string(entry.maskedReference) } : {}),
@@ -124,6 +126,7 @@ function fromItem(item: Record<string, AttributeValue>): BillingCheckRecord {
   const auditEntries = (item.auditEntries?.L || []).map((entry) => {
     const map = entry.M;
     if (!map) throw new Error("Stored check audit entry is invalid");
+    const actor = map.actor?.S;
     const note = map.note?.S;
     const amount = map.amount?.N ? requiredInteger(map, "amount") : undefined;
     const maskedReference = map.maskedReference?.S;
@@ -132,6 +135,7 @@ function fromItem(item: Record<string, AttributeValue>): BillingCheckRecord {
       action: requiredString(map, "action") as CheckAction,
       state: requiredString(map, "state") as CheckState,
       at: requiredString(map, "at"),
+      ...(actor ? { actor } : {}),
       ...(note ? { note } : {}),
       ...(amount ? { amount } : {}),
       ...(maskedReference ? { maskedReference } : {}),

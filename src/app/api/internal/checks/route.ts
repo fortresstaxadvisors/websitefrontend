@@ -68,7 +68,7 @@ function checkAmount(value: unknown, outstanding: number) {
   return Number(value);
 }
 
-function response(record: BillingCheckRecord | null, status = 200) {
+function response(record: BillingCheckRecord | null, status = 200, message?: string) {
   return Response.json({ check: record ? {
     itemType: record.itemType,
     invoiceId: record.invoiceId,
@@ -81,7 +81,17 @@ function response(record: BillingCheckRecord | null, status = 200) {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     auditEntries: record.auditEntries,
-  } : null }, { status, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+  } : null, ...(message ? { message } : {}) }, { status, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+}
+
+function transitionMessage(action: CheckAction) {
+  return {
+    RECEIVE: "Check receipt recorded. The invoice is still unpaid.",
+    DEPOSIT: "Bank deposit recorded. The invoice remains unpaid until the check clears and Square is reconciled.",
+    CLEAR: "Bank clearance recorded. Record the external check payment in Square, then reconcile it here.",
+    RETURN: "Check return recorded. Do not treat this amount as settled; correct Square if it was already reconciled.",
+    RECONCILE: "The exact completed Square check payment was verified and reconciled.",
+  }[action];
 }
 
 async function authoritativeInvoice(invoiceId: string) {
@@ -132,8 +142,8 @@ function validateAuthoritativeState(
   if (action === "RETURN") return;
   requireOpenInvoice(invoice, order);
   const outstanding = outstandingAmount(invoice);
-  if (existing && action !== "RECEIVE" && outstanding !== existing.amount) {
-    throw new RequestError("Square's current outstanding amount no longer matches the recorded check", 409);
+  if (existing && action !== "RECEIVE" && outstanding < existing.amount) {
+    throw new RequestError("Square's current outstanding amount is less than the recorded check", 409);
   }
 }
 
@@ -186,6 +196,11 @@ export async function POST(request: Request) {
     const body = parsed as Record<string, unknown>;
     const invoiceId = cleanIdentifier(body.invoiceId, "Invoice ID");
     const invoiceNumber = cleanIdentifier(body.invoiceNumber, "Invoice number", 191);
+    const actor = cleanIdentifier(
+      request.headers.get("x-fortress-actor") || "authenticated-billing-operator",
+      "Operator",
+      191,
+    );
     const note = cleanNote(body.note);
     if (body.confirmed !== true) throw new RequestError("Explicit confirmation is required", 422);
 
@@ -221,7 +236,7 @@ export async function POST(request: Request) {
           throw new RequestError("Check amount does not match the stored record", 409);
         }
       }
-      return response(existing);
+      return response(existing, 200, `This ${targetStateForAction(action).replaceAll("_", " ").toLowerCase()} check state was already recorded.`);
     }
 
     const { invoice, order } = await authoritativeInvoice(invoiceId);
@@ -247,6 +262,7 @@ export async function POST(request: Request) {
       action,
       state: targetStateForAction(action),
       at: now,
+      actor,
       ...(note ? { note } : {}),
       amount: receivedAmount ?? existing!.amount,
       maskedReference,
@@ -275,10 +291,10 @@ export async function POST(request: Request) {
         current?.state === transition.state
         && current.invoiceNumber === invoiceNumber
         && (action !== "RECEIVE" || current.maskedReference === next.maskedReference)
-      ) return response(current);
+      ) return response(current, 200, transitionMessage(action));
       throw cause;
     }
-    return response(next, existing ? 200 : 201);
+    return response(next, existing ? 200 : 201, transitionMessage(action));
   } catch (cause) {
     const status = cause instanceof RequestError
       ? cause.status

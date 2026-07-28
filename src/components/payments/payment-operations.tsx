@@ -17,7 +17,7 @@ type CheckRecord = {
   amount: number;
   updatedAt: string;
   squarePaymentId?: string;
-  auditEntries: { action: string; state: string; at: string; note?: string; amount?: number; maskedReference?: string; squarePaymentId?: string }[];
+  auditEntries: { action: string; state: string; at: string; actor?: string; note?: string; amount?: number; maskedReference?: string; squarePaymentId?: string }[];
 };
 
 const inputClass = "mt-2 w-full rounded-lg border border-[var(--line-strong)] bg-white px-3 py-2 text-base outline-none focus:border-[var(--accent-ink)] sm:text-sm";
@@ -162,7 +162,7 @@ export function InvoiceActions({ invoice, onChanged }: { invoice: OperationsInvo
                 <div className="mt-3 rounded-lg border border-[var(--line)] bg-white p-3 text-sm">
                   <p><strong>{check.state.replaceAll("_", " ").toLowerCase()}</strong> · {check.maskedReference} · ${(check.amount / 100).toFixed(2)}</p>
                   <p className="mt-1 text-xs text-[var(--faint)]">Updated {new Date(check.updatedAt).toLocaleString()}</p>
-                  {check.auditEntries?.length ? <ol className="mt-3 space-y-1 border-t border-[var(--line)] pt-2 text-xs text-[var(--muted)]">{check.auditEntries.slice(-8).map((entry, index) => <li key={`${entry.at}-${index}`}><strong>{entry.action.toLowerCase()}</strong> · {new Date(entry.at).toLocaleString()}{entry.amount ? ` · $${(entry.amount / 100).toFixed(2)}` : ""}{entry.maskedReference ? ` · ${entry.maskedReference}` : ""}{entry.squarePaymentId ? ` · Square ${entry.squarePaymentId}` : ""}{entry.note ? ` · ${entry.note}` : ""}</li>)}</ol> : null}
+                  {check.auditEntries?.length ? <ol className="mt-3 space-y-1 border-t border-[var(--line)] pt-2 text-xs text-[var(--muted)]">{check.auditEntries.slice(-8).map((entry, index) => <li key={`${entry.at}-${index}`}><strong>{entry.action.toLowerCase()}</strong> · {new Date(entry.at).toLocaleString()}{entry.actor ? ` · by ${entry.actor}` : ""}{entry.amount ? ` · $${(entry.amount / 100).toFixed(2)}` : ""}{entry.maskedReference ? ` · ${entry.maskedReference}` : ""}{entry.squarePaymentId ? ` · Square ${entry.squarePaymentId}` : ""}{entry.note ? ` · ${entry.note}` : ""}</li>)}</ol> : null}
                 </div>
               ) : null}
               {check?.state === "RETURNED" && ["PAID", "PARTIALLY_PAID"].includes(invoice.status.toUpperCase()) ? <p className="mt-3 rounded-lg border border-red-800/20 bg-red-50 p-3 text-sm font-semibold text-red-950">Returned check recorded, but Square still includes the check payment. Correct the recorded payment in Square and resume collection; do not treat that amount as settled.</p> : null}

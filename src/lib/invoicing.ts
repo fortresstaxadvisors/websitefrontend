@@ -102,12 +102,15 @@ export async function createSquareInvoice(input: InvoiceInput, signedAgreement: 
       ? `Check option: make payable to ${checkPayee}; mail to ${checkAddress}; include ${input.invoiceNumber} on the memo line.`
       : "Check payment is not enabled on this invoice. Contact clientservice@fortresstaxadvisors.com before mailing any check.";
     const achEnabled = process.env.SQUARE_ENABLE_ACH === "true" && input.allowAch === true;
+    const cardSecurityText = process.env.SQUARE_3DS_RISK_MANAGER_CONFIRMED === "true"
+      ? " Card payments use Square 3D Secure. Most payments complete normally without an extra step; the cardholder's bank may request a brief identity check."
+      : "";
     const scheduleText = schedule.adjustmentNote ? `\n\nBilling schedule note: ${schedule.adjustmentNote}` : "";
     const recovered = await existingSquareInvoiceForOrder(orderData.order.id, locationId);
     const invoiceStage = `invoice-schedule-v2:${schedule.includeDeposit ? "deposit" : "balance"}:${schedule.depositDueDate}:${schedule.balanceDueDate}`;
     const draft = recovered
       ? { invoice: recovered }
-      : await squareFetch<{ invoice: SquareInvoice }>("/v2/invoices", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, invoiceStage), invoice: { order_id: orderData.order.id, primary_recipient: { customer_id: customerId }, delivery_method: "EMAIL", payment_requests: paymentRequests, accepted_payment_methods: { card: true, square_gift_card: false, bank_account: achEnabled, buy_now_pay_later: false, cash_app_pay: false }, invoice_number: input.invoiceNumber, title: input.title, description: `${input.description}\n\n${payerAuthorizationStatement(input)}${scheduleText}\n\nSecure online payment is available through this invoice.${achEnabled ? " ACH is enabled for this approved engagement; pending or completed ACH is not treated as irrevocable." : " ACH is not enabled for this engagement."} ${checkText} Refund and cancellation terms are governed by the attached signed engagement agreement.`, store_payment_method_enabled: false } }) });
+      : await squareFetch<{ invoice: SquareInvoice }>("/v2/invoices", { method: "POST", body: JSON.stringify({ idempotency_key: key(input.workflowId, invoiceStage), invoice: { order_id: orderData.order.id, primary_recipient: { customer_id: customerId }, delivery_method: "EMAIL", payment_requests: paymentRequests, accepted_payment_methods: { card: true, square_gift_card: false, bank_account: achEnabled, buy_now_pay_later: false, cash_app_pay: false }, invoice_number: input.invoiceNumber, title: input.title, description: `${input.description}\n\n${payerAuthorizationStatement(input)}${scheduleText}\n\nSecure online payment is available through this invoice.${cardSecurityText}${achEnabled ? " ACH is enabled for this approved engagement; pending or completed ACH is not treated as irrevocable." : " ACH is not enabled for this engagement."} ${checkText} Refund and cancellation terms are governed by the attached signed engagement agreement.`, store_payment_method_enabled: false } }) });
     draftId = draft.invoice.id;
     const existing = await squareFetch<{ invoice: SquareInvoice }>(`/v2/invoices/${encodeURIComponent(draftId)}`);
     if (existing.invoice.status && existing.invoice.status !== "DRAFT") {

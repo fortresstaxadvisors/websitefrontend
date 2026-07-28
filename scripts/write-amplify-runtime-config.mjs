@@ -20,6 +20,7 @@ const optional = [
   "SQUARE_SANDBOX_SKIP_ATTACHMENTS",
   "SQUARE_LOCATION_TIME_ZONE",
   "SQUARE_ENABLE_ACH",
+  "SQUARE_3DS_RISK_MANAGER_CONFIRMED",
   "FORTRESS_REFUNDS_ENABLED",
   "FORTRESS_BILLING_OPERATIONS_TABLE",
   "FORTRESS_BILLING_EVIDENCE_BUCKET",
@@ -79,10 +80,11 @@ export function buildRuntimeConfig(environment = process.env) {
     if (!values.DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID) throw new Error("Production requires a service-acceptance template");
     if (!values.FORTRESS_DISPUTE_ALERT_TOPIC_ARN) throw new Error("Production requires a dispute alert topic");
     if (!values.SQUARE_LOCATION_TIME_ZONE) throw new Error("Production requires the Square location time zone");
+    if (values.SQUARE_3DS_RISK_MANAGER_CONFIRMED !== "true") throw new Error("Production requires confirmed Square Risk Manager 3D Secure protection");
   } else if (new URL(values.PAYMENT_BASE_URL).origin === "https://fortresstaxadvisors.com") {
     throw new Error("Sandbox PAYMENT_BASE_URL cannot use the production origin");
   }
-  for (const key of ["SQUARE_SANDBOX_SKIP_ATTACHMENTS", "SQUARE_ENABLE_ACH", "FORTRESS_REFUNDS_ENABLED", "FORTRESS_SANDBOX_INVOICE_EMAIL"]) {
+  for (const key of ["SQUARE_SANDBOX_SKIP_ATTACHMENTS", "SQUARE_ENABLE_ACH", "SQUARE_3DS_RISK_MANAGER_CONFIRMED", "FORTRESS_REFUNDS_ENABLED", "FORTRESS_SANDBOX_INVOICE_EMAIL"]) {
     if (values[key] && !new Set(["true", "false"]).has(values[key])) throw new Error(`${key} must be true or false`);
   }
   if (values.FORTRESS_SANDBOX_INVOICE_EMAIL === "true") {

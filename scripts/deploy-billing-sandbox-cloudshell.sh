@@ -360,6 +360,7 @@ fortress_deploy_billing_sandbox() (
         SQUARE_LOCATION_TIME_ZONE: "UTC",
         SQUARE_SANDBOX_SKIP_ATTACHMENTS: "true",
         SQUARE_ENABLE_ACH: "true",
+        SQUARE_3DS_RISK_MANAGER_CONFIRMED: "false",
         FORTRESS_REFUNDS_ENABLED: "true",
         FORTRESS_SANDBOX_INVOICE_EMAIL: "true",
         FORTRESS_TRANSACTIONAL_EMAIL_FROM: "engagements@fortresstaxadvisors.com",

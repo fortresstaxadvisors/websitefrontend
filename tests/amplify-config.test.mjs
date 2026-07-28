@@ -51,6 +51,7 @@ test("requires production settings to move together", () => {
     FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-production",
     PAYMENT_BASE_URL: "https://fortresstaxadvisors.com",
     SQUARE_ENVIRONMENT: "production",
+    SQUARE_3DS_RISK_MANAGER_CONFIRMED: "true",
     SQUARE_WEBHOOK_NOTIFICATION_URL: "https://fortresstaxadvisors.com/api/webhooks/square",
     SQUARE_SANDBOX_SKIP_ATTACHMENTS: "false",
     FORTRESS_BILLING_OPERATIONS_TABLE: "fortress-billing-production-operations",
@@ -59,6 +60,31 @@ test("requires production settings to move together", () => {
     DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID: "43",
     FORTRESS_DISPUTE_ALERT_TOPIC_ARN: "arn:aws:sns:us-east-1:123456789012:fortress-billing-production-dispute-alerts",
   })));
+});
+
+test("fails production closed until the live Square 3DS rule is confirmed", () => {
+  const production = {
+    FORTRESS_DEPLOYMENT_STAGE: "production",
+    FORTRESS_RUNTIME_SECRET_ID: "fortress/website/billing-production",
+    PAYMENT_BASE_URL: "https://fortresstaxadvisors.com",
+    SQUARE_ENVIRONMENT: "production",
+    SQUARE_WEBHOOK_NOTIFICATION_URL: "https://fortresstaxadvisors.com/api/webhooks/square",
+    SQUARE_SANDBOX_SKIP_ATTACHMENTS: "false",
+    FORTRESS_BILLING_OPERATIONS_TABLE: "fortress-billing-production-operations",
+    FORTRESS_BILLING_EVIDENCE_BUCKET: "fortress-billing-production-evidence-123456789012",
+    PAYMENT_EVENT_FORWARD_URL: "https://alerts.fortresstaxadvisors.com/square",
+    DOCUSEAL_SERVICE_ACCEPTANCE_TEMPLATE_ID: "43",
+    FORTRESS_DISPUTE_ALERT_TOPIC_ARN: "arn:aws:sns:us-east-1:123456789012:fortress-billing-production-dispute-alerts",
+  };
+  assert.throws(() => buildRuntimeConfig(environment(production)), /3D Secure protection/);
+  assert.throws(() => buildRuntimeConfig(environment({ ...production, SQUARE_3DS_RISK_MANAGER_CONFIRMED: "false" })), /3D Secure protection/);
+  assert.doesNotThrow(() => buildRuntimeConfig(environment({ ...production, SQUARE_3DS_RISK_MANAGER_CONFIRMED: "true" })));
+});
+
+test("discloses production 3DS without adding a fake Sandbox promise", () => {
+  const source = readFileSync(new URL("../src/lib/invoicing.ts", import.meta.url), "utf8");
+  assert.match(source, /SQUARE_3DS_RISK_MANAGER_CONFIRMED === "true"/);
+  assert.match(source, /Most payments complete normally without an extra step/);
 });
 
 test("requires complete check instructions when checks are enabled", () => {
@@ -164,6 +190,7 @@ test("enables a safe Fortress invoice-link email without leaving Square Sandbox"
   assert.match(script, /\.\[0\]\.Resource == "\*"/);
   assert.match(script, /SQUARE_ENVIRONMENT:\s*"sandbox"/);
   assert.doesNotMatch(script, /SQUARE_ENVIRONMENT:\s*"production"/);
+  assert.match(script, /SQUARE_3DS_RISK_MANAGER_CONFIRMED:\s*"false"/);
   const output = buildRuntimeConfig(environment({
     FORTRESS_SANDBOX_INVOICE_EMAIL: "true",
     FORTRESS_TRANSACTIONAL_EMAIL_FROM: "engagements@fortresstaxadvisors.com",

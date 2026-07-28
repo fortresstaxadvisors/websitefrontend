@@ -366,6 +366,8 @@ fortress_deploy_billing_sandbox() (
         FORTRESS_TRANSACTIONAL_EMAIL_REPLY_TO: "clientservice@fortresstaxadvisors.com",
         FORTRESS_BILLING_OPERATIONS_TABLE: $operations_table,
         FORTRESS_BILLING_EVIDENCE_BUCKET: $evidence_bucket,
+        FORTRESS_CHECK_PAYEE: "TEST ONLY — DO NOT MAIL",
+        FORTRESS_CHECK_REMITTANCE_ADDRESS: "PLACEHOLDER REMITTANCE ADDRESS — SANDBOX TEST ONLY",
         SQUARE_WEBHOOK_NOTIFICATION_URL: $square_webhook,
         DOCUSEAL_BASE_URL: "https://sign.fortresstaxadvisors.com/api",
         DOCUSEAL_ENGAGEMENT_TEMPLATE_ID: $template,

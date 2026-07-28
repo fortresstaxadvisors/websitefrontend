@@ -64,6 +64,9 @@ test("requires production settings to move together", () => {
 test("requires complete check instructions when checks are enabled", () => {
   assert.throws(() => buildRuntimeConfig(environment({ FORTRESS_CHECK_PAYEE: "Fortress Tax Advisors" })), /payee and remittance address/);
   assert.doesNotThrow(() => buildRuntimeConfig(environment({ FORTRESS_CHECK_PAYEE: "Fortress Tax Advisors", FORTRESS_CHECK_REMITTANCE_ADDRESS: "Verified test address" })));
+  const script = readFileSync(new URL("../scripts/deploy-billing-sandbox-cloudshell.sh", import.meta.url), "utf8");
+  assert.match(script, /FORTRESS_CHECK_PAYEE: "TEST ONLY — DO NOT MAIL"/);
+  assert.match(script, /FORTRESS_CHECK_REMITTANCE_ADDRESS: "PLACEHOLDER REMITTANCE ADDRESS — SANDBOX TEST ONLY"/);
 });
 
 test("requires production acceptance and a dispute alert topic", () => {

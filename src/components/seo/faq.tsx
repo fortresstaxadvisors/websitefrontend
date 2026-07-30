@@ -15,8 +15,8 @@ import { FaqJsonLd } from "@/components/seo/json-ld";
   a hairline between rows, no loud accordion chrome.
 
   TRUTHFULNESS: pass only confirmed answers. The default questions used on the
-  site cover the response standard, the firm-level CPA credential, the method,
-  and the consultative process — all from confirmed-inputs.md.
+  site cover the response standard, professional coordination, the method, and
+  the consultative process — all from confirmed-inputs.md.
 */
 
 export type FaqItem = { question: string; answer: string };

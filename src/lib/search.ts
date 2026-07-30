@@ -75,7 +75,7 @@ const STATIC_PAGES: SiteSearchItem[] = [
     href: "/about",
     section: "Firm",
     summary:
-      "Fortress Tax Advisors is a senior-led, licensed CPA firm built for genuine tax complexity.",
+      "Fortress Tax Advisors is a senior-led tax advisory firm built for genuine tax complexity.",
     body:
       "Founded in 2021, advisory not compliance, Built to Hold, Fortress Hold Method, senior-led analysis, defensible positions, business owners, investors, fiduciaries, high-net-worth families, and complex taxpayers.",
   },
@@ -86,7 +86,7 @@ const STATIC_PAGES: SiteSearchItem[] = [
     summary:
       "The principals behind the advisory practice, client experience, operations, and systems.",
     body:
-      "Tyler Ballein, Founding and Managing Partner, Omer Muhammad, Partner and CTO, licensed CPA firm, CPAs on staff, senior advisors, Fortress Hold Method, client portal, operations, technology, and engagement standards.",
+      "Tyler Ballein, Founding and Managing Partner, Omer Muhammad, Partner and CTO, senior advisors, professional coordination, Fortress Hold Method, client portal, operations, technology, and engagement standards.",
   },
   {
     title: "Consultation",

@@ -8,8 +8,8 @@ import { MonogramPortrait } from "@/components/firm-identity/shared";
   fixed aspect ratio so a real headshot swaps in later with ZERO layout change.
 
   TRUTHFULNESS: only confirmed principals and confirmed facts. No invented
-  credentials, employers, education, or designations. Tyler is NOT a CPA — the
-  CPA credential lives at the firm level only (see LeadershipCredential).
+  credentials, employers, education, or designations. Tyler is NOT a CPA, and
+  no regulated firm credential is implied.
 
   `index` alternates the column order so the two cards mirror each other
   (portrait-left / portrait-right) — a quiet editorial rhythm, not a sequence.

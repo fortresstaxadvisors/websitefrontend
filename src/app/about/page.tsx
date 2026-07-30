@@ -20,21 +20,17 @@ import {
     Hero (paper) → Thesis statement (paper-deep) → How We Work (paper)
     → Founding Context (paper-deep) → Era Timeline (SLATE)
     → The Hold Method (SLATE-DEEP) → Who We Serve (paper)
-    → Firm credential (paper-deep) → Consultative CTA (dark block on paper)
+    → Professional coordination (paper-deep) → Consultative CTA (dark block on paper)
 
   TRUTHFULNESS: founded 2021; five years; senior-led advisory; public
-  regulatory context as credential; confirmed client types. Firm-level CPA
-  credential only (never a personal designation).
-
-  NOTE(legal-review): The "licensed CPA firm" statement here and on /leadership
-  is publishable per confirmed-inputs.md, but the EXACT legal wording must be
-  reviewed and approved before launch. Treat as review-pending.
+  regulatory context as credential; confirmed client types; professional
+  coordination without implying a regulated firm credential.
 */
 
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Fortress Tax Advisors is a senior-led, licensed CPA firm built for genuine tax complexity. Advisory, not compliance — founded in 2021 and built to hold. Our firm, method, and the clients we serve.",
+    "Fortress Tax Advisors is a senior-led tax advisory firm built for genuine tax complexity. Advisory, not compliance — founded in 2021 and built to hold. Our firm, method, and the clients we serve.",
   alternates: { canonical: "/about" },
 };
 
@@ -49,7 +45,7 @@ export default function AboutPage() {
           </>
         }
         lede="Fortress Tax Advisors is a tax advisory firm structured to provide senior-led analysis through a relationship model larger firms cannot credibly replicate. We practice advisory, not compliance: our work begins before transactions are structured — not after returns are filed."
-        meta="A licensed CPA firm · Senior-led · Founded 2021"
+        meta="Senior-led · Founded 2021 · Built to hold"
       />
 
       {/* Opening thesis — a single restrained voice moment, not a loud hero. */}

@@ -112,7 +112,7 @@ export default function PrivacyPage() {
           </div>
 
           <p className="mt-12 border-t border-[var(--line)] pt-6 text-sm leading-7 text-[var(--muted)]">
-            Fortress Tax Advisors is a licensed CPA firm. This website is for
+            Fortress Tax Advisors is a tax advisory firm. This website is for
             general information and does not, by itself, create an advisory or
             client relationship. The exact terms of any engagement are set out
             in a signed engagement letter.

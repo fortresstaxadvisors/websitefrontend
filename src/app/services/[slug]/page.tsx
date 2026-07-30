@@ -141,7 +141,7 @@ export default async function ServiceDetailPage({ params }: ServicePageProps) {
               label: "Speak with a Fortress advisor",
             }}
             secondary={{ href: "/services", label: "All services" }}
-            note="A licensed CPA firm with CPAs on staff. Typical first response within one business day."
+            note="Senior-led tax advisory. Typical first response within one business day."
           />
         </Reveal>
       </Section>

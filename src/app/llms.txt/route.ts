@@ -140,7 +140,7 @@ function buildLlmsTxt(): string {
     "- Who it serves: business owners, investors, fiduciaries, high-net-worth families, operating companies, and complex individual taxpayers.",
     "- Where: clients across the United States, including multi-state situations.",
     "- Tagline: “Built to Hold.”",
-    "- Contact: consultative first conversation; a senior advisor responds within one business day. clientservice@fortresstaxadvisors.com.",
+    "- Contact: consultative first conversation; a senior advisor responds within one business day. clientservices@fortresstaxadvisors.com.",
   ].join("\n");
 
   return [

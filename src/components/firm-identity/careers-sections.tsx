@@ -16,7 +16,7 @@ import {
 
   TRUTHFULNESS: open roles are REAL (see components/careers/openings.ts) — no
   fabricated salaries or benefits. The apply path is a role-specific note to the
-  confirmed firm address (clientservice@fortresstaxadvisors.com).
+  confirmed firm address (clientservices@fortresstaxadvisors.com).
 */
 
 /* ---- The standard — what the work is, and who it suits ---- */

@@ -20,7 +20,7 @@
 */
 
 /** Confirmed-working inbox. Swap to a dedicated careers@ address later. */
-export const APPLY_EMAIL = "clientservice@fortresstaxadvisors.com";
+export const APPLY_EMAIL = "clientservices@fortresstaxadvisors.com";
 
 /** Date all current openings were posted (used in copy + JobPosting). */
 export const OPENINGS_DATE_POSTED = "2026-06-19";

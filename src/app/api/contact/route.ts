@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
   provider wired and no API key in the environment yet. We never claim a
   message was actually delivered to a human inbox.
 
-  TODO(orchestrator): wire Resend/Formspree to clientservice@fortresstaxadvisors.com
+  TODO(orchestrator): wire Resend/Formspree to clientservices@fortresstaxadvisors.com
     1. Add the provider SDK (e.g. `resend`) and a server-only API key
        (RESEND_API_KEY) to the deployment environment — do NOT prefix with
        NEXT_PUBLIC_ (see Next.js "preventing environment poisoning").
@@ -26,7 +26,7 @@ import { NextResponse } from "next/server";
   ============================================================================
 */
 
-const CLIENT_SERVICE_EMAIL = "clientservice@fortresstaxadvisors.com";
+const CLIENT_SERVICE_EMAIL = "clientservices@fortresstaxadvisors.com";
 
 type ContactPayload = {
   name?: unknown;

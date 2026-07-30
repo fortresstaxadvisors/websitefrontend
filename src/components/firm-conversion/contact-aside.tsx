@@ -9,7 +9,7 @@ import { KeystoneGlyph } from "@/components/brand/motifs";
   numbers, offices, geographies, or SLAs beyond the confirmed standard.
 */
 
-const CLIENT_SERVICE_EMAIL = "clientservice@fortresstaxadvisors.com";
+const CLIENT_SERVICE_EMAIL = "clientservices@fortresstaxadvisors.com";
 
 const FOR: string[] = [
   "Business owners and operators weighing a consequential decision",

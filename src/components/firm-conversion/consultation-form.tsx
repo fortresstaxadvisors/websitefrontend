@@ -21,10 +21,10 @@ import {
   message was "sent." On a server/network failure we degrade gracefully to a
   prefilled mailto: so the inquiry is never lost.
 
-  TODO(orchestrator): wire Resend/Formspree to clientservice@fortresstaxadvisors.com
+  TODO(orchestrator): wire Resend/Formspree to clientservices@fortresstaxadvisors.com
 */
 
-const CLIENT_SERVICE_EMAIL = "clientservice@fortresstaxadvisors.com";
+const CLIENT_SERVICE_EMAIL = "clientservices@fortresstaxadvisors.com";
 
 const ENTITY_OPTIONS = [
   { value: "individual", label: "Individual / household" },

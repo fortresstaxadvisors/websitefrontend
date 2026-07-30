@@ -16,14 +16,11 @@ import {
   change (see MonogramPortrait in firm-identity/shared.tsx).
 
   TRUTHFULNESS (critical here):
-   - Only the two confirmed principals + a firm-level "CPAs on staff" line.
+   - Only the two confirmed principals and confirmed professional-coordination facts.
    - Tyler Ballein is NOT a CPA — no "CPA" after his name, no implication.
-   - The CPA credential is stated at the FIRM level only, never personally.
+   - Fortress itself does not hold the regulated firm credential.
+   - No independent contractor is described as staff.
    - No invented credentials, employers, education, awards, or other team.
-
-  NOTE(legal-review): the "licensed CPA firm / CPAs on staff" wording is
-  publishable per confirmed-inputs.md, but the EXACT legal wording must be
-  reviewed before launch. Treat as review-pending.
 */
 
 // ---------------------------------------------------------------------------
@@ -39,7 +36,7 @@ const CTO_INITIALS = "OM";
 export const metadata: Metadata = {
   title: "Leadership",
   description:
-    "The principals of Fortress Tax Advisors. Tyler Ballein, Founding & Managing Partner, leads the firm's advisory practice; the firm's Partner & CTO leads client experience, operations, and the systems behind every engagement. A licensed CPA firm with CPAs on staff.",
+    "The principals of Fortress Tax Advisors. Tyler Ballein, Founding & Managing Partner, leads the firm's advisory practice; the firm's Partner & CTO leads client experience, operations, and the systems behind every engagement.",
   alternates: { canonical: "/leadership" },
 };
 
@@ -89,7 +86,7 @@ export default function LeadershipPage() {
           </>
         }
         lede="Fortress is led by two principals with complementary responsibilities: one for the advisory practice and the standard of the work, one for the experience, systems, and operations that hold it together. The advisor who knows your situation is the one who built it."
-        meta="A licensed CPA firm · CPAs on staff"
+        meta="Senior-led · Founded 2021"
       />
 
       {/* The principals. */}
@@ -115,30 +112,26 @@ export default function LeadershipPage() {
         </Reveal>
       </Section>
 
-      {/* Firm credential — CPAs on staff, stated at the practice level. */}
+      {/* Professional coordination. */}
       <Section tone="slate">
         <Reveal>
           <div className="grid gap-10 md:grid-cols-[0.8fr_1.2fr] md:items-center md:gap-16">
             <div>
               <div className="flex items-center gap-3">
                 <KeystoneGlyph className="h-5 w-5 text-[var(--accent-bright)]" />
-                <Eyebrow bare>The Credential</Eyebrow>
+                <Eyebrow bare>Professional Coordination</Eyebrow>
               </div>
               <h2 className="display mt-5 t-h2 text-[var(--ink)]">
-                A licensed CPA firm, with CPAs on staff.
+                Built for coordinated advice.
               </h2>
             </div>
             <div className="measure space-y-5 text-[var(--muted)] md:text-[1.05rem] md:leading-[1.7]">
-              {/*
-                TRUTHFULNESS: firm/practice-level credential ONLY. Never a
-                personal designation for Tyler or the CTO. Exact legal wording
-                pending review (see NOTE at top of file).
-              */}
               <p>
-                Fortress Tax Advisors is a licensed CPA firm, and there are CPAs
-                on staff supporting the work. We hold that credential at the
-                level of the practice — where it belongs — rather than treating
-                it as a personal title.
+                Tax decisions often sit alongside return preparation,
+                accounting, legal, and wealth-planning work. Fortress
+                coordinates with the client&apos;s existing professionals and,
+                when needed, qualified independent specialists while keeping
+                each party&apos;s role clear.
               </p>
               <p>
                 As the firm grows, we will introduce the advisors behind the

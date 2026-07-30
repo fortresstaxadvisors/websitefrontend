@@ -39,7 +39,7 @@ export function HomeHero() {
           >
             A defensible position is not the most aggressive one. It is the one
             most likely to hold &mdash; under audit, under review, and over
-            time. Fortress Tax Advisors is a senior-led, licensed CPA firm that
+            time. Fortress Tax Advisors is a senior-led tax advisory firm that
             builds tax structures for exactly that standard.
           </p>
           <div

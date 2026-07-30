@@ -3,8 +3,8 @@
 
   TRUTHFULNESS: firm-level facts only. We assert the things we can stand
   behind — the legal name, the canonical URL, the founding year (2021), the
-  "Built to Hold." slogan, and that Fortress is a licensed CPA firm offering
-  tax advisory services. We deliberately DO NOT emit a postal address, phone
+  "Built to Hold." slogan, and that Fortress offers tax advisory services. We
+  deliberately DO NOT emit a postal address, phone
   number, geo coordinates, employee count, founders, awards, ratings, or
   client claims, because none of those are confirmed/publishable. Adding empty
   or fabricated values would be both untrue and bad for SEO, so they are
@@ -32,7 +32,7 @@ const WEBSITE_ID = `${SITE_URL}/#website`;
 const ORG_NAME = "Fortress Tax Advisors";
 
 const ORG_DESCRIPTION =
-  "Fortress Tax Advisors is a senior-led, licensed CPA firm providing tax " +
+  "Fortress Tax Advisors is a senior-led tax advisory firm providing " +
   "advisory services — planning, entity structuring, transaction and exit " +
   "planning, multi-state compliance, trust and estate tax, and controversy " +
   "support — for businesses, investors, and fiduciaries managing genuine " +
@@ -171,8 +171,8 @@ export function BreadcrumbJsonLd({
  * default). Answers may include light inline markup; they are emitted as plain
  * strings, so pass already-resolved text.
  *
- * TRUTHFULNESS: only confirmed answers — response standard, CPA-firm credential
- * (firm level), method, and process. No fabricated specifics.
+ * TRUTHFULNESS: only confirmed answers — response standard, professional
+ * coordination, method, and process. No fabricated specifics.
  */
 export function FaqJsonLd({
   items,

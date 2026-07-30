@@ -20,9 +20,9 @@ import {
   descriptions, plus a key-facts block.
 
   TRUTHFULNESS: only confirmed, publishable facts (founded 2021; senior-led;
-  licensed CPA firm with CPAs on staff; "Built to Hold."; serves clients across
-  the U.S.; consultative contact). No address, phone, headcount, client names,
-  awards, or geography beyond the confirmed broad framing.
+  tax advisory firm; professional coordination; "Built to Hold."; serves
+  clients across the U.S.; consultative contact). No address, phone, headcount,
+  client names, awards, or geography beyond the confirmed broad framing.
 */
 
 const SITE_URL = "https://fortresstaxadvisors.com";
@@ -89,7 +89,7 @@ function buildLlmsTxt(): string {
   const intro = [
     "# Fortress Tax Advisors",
     "",
-    "> Fortress Tax Advisors is a senior-led, licensed CPA firm providing proactive tax advisory — not compliance or preparation — for businesses, investors, fiduciaries, and high-net-worth families managing genuine tax complexity. Founded in 2021, the firm practices the Fortress Hold Method: turning complex tax facts into durable, defensible positions that hold under audit, under review, and over time. Built to Hold.",
+    "> Fortress Tax Advisors is a senior-led tax advisory firm providing proactive tax advisory — not compliance or preparation — for businesses, investors, fiduciaries, and high-net-worth families managing genuine tax complexity. Founded in 2021, the firm practices the Fortress Hold Method: turning complex tax facts into durable, defensible positions that hold under audit, under review, and over time. Built to Hold.",
     "",
     "Fortress serves clients across the United States. Every engagement is led by a senior advisor — not delegated to a junior team — and the same advisors who build a position maintain it as the law changes. Use this file to find the firm's services, the industries it focuses on, its editorial analysis, and how to start a consultative conversation.",
   ].join("\n");
@@ -135,7 +135,7 @@ function buildLlmsTxt(): string {
     "",
     "- Founded: 2021 (five years of operation as of 2026).",
     "- What it is: a senior-led tax advisory firm — proactive and structural, distinguished from pure compliance or preparation.",
-    "- Credential: a licensed CPA firm with CPAs on staff (asserted at the firm level).",
+    "- Professional coordination: works with clients' tax preparers, accountants, attorneys, wealth advisors, and other professionals when an engagement requires it.",
     "- Method: the Fortress Hold Method — Define the facts, Evaluate exposure, Build the structure, Coordinate execution, Monitor change over time.",
     "- Who it serves: business owners, investors, fiduciaries, high-net-worth families, operating companies, and complex individual taxpayers.",
     "- Where: clients across the United States, including multi-state situations.",

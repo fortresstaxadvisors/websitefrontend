@@ -13,7 +13,7 @@ import { Prose } from "@/components/prose";
   portal today. Written defensively for maximum protection of the firm:
   acceptable-use, account/security, electronic-records, disclaimers,
   limitation of liability, indemnification, suspension, and governing law.
-  Truthful: Fortress is a licensed CPA firm, not a law firm; the professional
+  Truthful: Fortress is a tax advisory firm, not a law firm; the professional
   relationship is governed by a signed engagement letter, which controls.
   Bracketed items need input before search indexing.
 */
@@ -42,7 +42,7 @@ Using the Services, contacting us through them, requesting a consultation, creat
 
 ## Scope of the firm
 
-Fortress Tax Advisors is a licensed CPA firm. **Fortress is not a law firm and does not provide legal advice.** Where a matter calls for legal counsel, we coordinate with your attorneys or recommend that you engage them.
+Fortress Tax Advisors is a tax advisory firm. **Fortress is not a law firm and does not provide legal advice.** Where a matter calls for legal counsel, we coordinate with your attorneys or recommend that you engage them.
 
 ## Eligibility and accounts
 

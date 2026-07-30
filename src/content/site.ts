@@ -151,15 +151,10 @@ export const processSteps = [
   engine can lift any single Q&A and have it stand on its own.
 
   TRUTHFULNESS: every answer maps to confirmed-inputs.md / history-framing.md —
-  founding (2021), senior-led model, the Fortress Hold Method, the firm-level
-  CPA-firm credential, the "within one business day" response standard, the
+  founding (2021), senior-led model, the Fortress Hold Method, professional
+  coordination, the "within one business day" response standard, the
   consultative (no-quote-first) process, and the future Client Portal. No
   fabricated address, phone, headcount, geography, clients, or outcomes.
-
-  NOTE(legal-review): the "licensed CPA firm" answer below is publishable per
-  confirmed-inputs.md, but the EXACT legal wording must be reviewed and
-  approved before launch. Treat as review-pending (same status as /about and
-  /leadership).
 */
 
 /** Firm-level FAQ — used on the Contact page. "What is Fortress / how to start." */
@@ -167,12 +162,12 @@ export const firmFaq: { question: string; answer: string }[] = [
   {
     question: "What is Fortress Tax Advisors?",
     answer:
-      "Fortress Tax Advisors is a senior-led, licensed CPA firm that provides proactive tax advisory — planning, entity structuring, transaction and exit planning, multi-state compliance, trust and estate tax, and controversy support — for businesses, investors, fiduciaries, and high-net-worth families managing genuine tax complexity. Founded in 2021, the firm practices advisory rather than pure compliance: the work begins before transactions are structured, not after returns are filed.",
+      "Fortress Tax Advisors is a senior-led tax advisory firm that provides proactive planning, entity structuring, transaction and exit planning, multi-state compliance, trust and estate tax, and controversy support for businesses, investors, fiduciaries, and high-net-worth families managing genuine tax complexity. Founded in 2021, the firm practices advisory rather than pure compliance: the work begins before transactions are structured, not after returns are filed.",
   },
   {
-    question: "Is Fortress a CPA firm?",
+    question: "Does Fortress coordinate with other professionals?",
     answer:
-      "Yes. Fortress is a licensed CPA firm with CPAs on staff. That credential is held at the firm level. Engagements are led by senior advisors who remain responsible for the relationship over time.",
+      "Yes. Fortress coordinates with clients' tax preparers, accountants, attorneys, wealth advisors, and other professionals when an engagement requires it. Roles and responsibilities are kept clear, while a senior Fortress advisor remains responsible for the advisory relationship.",
   },
   {
     question: "How does Fortress work?",

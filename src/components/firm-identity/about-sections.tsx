@@ -11,7 +11,7 @@ import { KeystoneGlyph } from "@/components/brand/motifs";
   About page sections. The firm narrative, drawn from:
     - 02-brand/history-framing.md §5 (the About framework + approved patterns)
     - 02-brand/messaging-pillars.md (pillars 1–4)
-    - 00-orchestration/confirmed-inputs.md (CPA-firm credential, client types)
+    - 00-orchestration/confirmed-inputs.md (professional coordination, client types)
   Tone: method-over-personality. Light/dark band rhythm. No fabricated facts.
 */
 
@@ -190,7 +190,7 @@ export function AboutWhoWeServe() {
   );
 }
 
-/* ---- 6. The firm credential — CPA-firm trust signal (restrained) ---- */
+/* ---- 6. Professional coordination ---- */
 
 export function AboutCredential() {
   return (
@@ -199,22 +199,16 @@ export function AboutCredential() {
         <Reveal>
           <SectionHeader
             eyebrow="The Firm"
-            title="A licensed CPA firm, organized around judgment."
+            title="A tax advisory firm, organized around judgment."
           />
         </Reveal>
         <Reveal delay={0.06}>
-          {/*
-            TRUTHFULNESS: firm-level credential only. Per confirmed-inputs.md,
-            Fortress is a licensed CPA firm with CPAs on staff. This is a
-            practice-level statement, never a personal designation.
-            NOTE: exact legal wording must be reviewed before launch — see the
-            HTML comment in app/about/page.tsx.
-          */}
           <div className="measure space-y-6 text-[var(--muted)] md:text-[1.075rem] md:leading-[1.75]">
             <p>
-              Fortress Tax Advisors is a licensed CPA firm, with CPAs on staff.
-              We surface that credential where it belongs — at the level of the
-              practice — and let the substance of the work speak for the rest.
+              Fortress Tax Advisors is a senior-led tax advisory firm. When an
+              engagement intersects with return preparation, accounting, legal,
+              or wealth-planning work, we coordinate with the client&apos;s
+              existing professionals or qualified independent specialists.
             </p>
             <p>
               Scale signals, at Fortress, come from depth rather than from a

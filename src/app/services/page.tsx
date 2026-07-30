@@ -129,7 +129,7 @@ export default function ServicesPage() {
               label: "Speak with a Fortress advisor",
             }}
             secondary={{ href: "/industries", label: "Browse by industry" }}
-            note="A licensed CPA firm with CPAs on staff. Typical first response within one business day."
+            note="Senior-led tax advisory. Typical first response within one business day."
           />
         </Reveal>
       </Section>

@@ -9,8 +9,8 @@
    - Real, generic-but-substantive descriptions only.
    - NO salary / comp / equity / benefits, NO headcount or growth claims,
      NO office or city. Work model is Remote — United States.
-   - The CPA credential lives at the FIRM level; a role may require a personal
-     CPA only where the role itself genuinely demands it (Tax Manager).
+   - A role may require a personal CPA license only where the role itself
+     genuinely demands it (Tax Manager); this does not change firm status.
    - Copy is in the Fortress voice (precise, declarative, no promotional filler).
 
   Apply path: a `mailto:` to the confirmed firm inbox with a role-specific

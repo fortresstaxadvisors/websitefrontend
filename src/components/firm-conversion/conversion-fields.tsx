@@ -186,7 +186,7 @@ export function SelectField({
   options,
   placeholder = "Select one",
 }: BaseInputProps & {
-  options: { value: string; label: string }[];
+  options: readonly { value: string; label: string }[];
   placeholder?: string;
 }) {
   return (

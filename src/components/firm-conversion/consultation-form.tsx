@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { KeystoneGlyph } from "@/components/brand/motifs";
 import {
@@ -8,6 +9,12 @@ import {
   SelectField,
   TextAreaField,
 } from "@/components/firm-conversion/conversion-fields";
+import { TurnstileWidget } from "@/components/firm-conversion/turnstile-widget";
+import {
+  ENTITY_OPTIONS,
+  HEARD_OPTIONS,
+  TIMELINE_OPTIONS,
+} from "@/lib/contact/options";
 
 /*
   ConsultationForm — the consultative entry point. It does two jobs at once:
@@ -15,45 +22,14 @@ import {
   conversation, AND it qualifies fit (entity type, situation, timeline, role).
   It is not a "get a quote" funnel.
 
-  Submission is a deliberate STUB. The form POSTs JSON to /api/contact, which
-  logs server-side and returns 200 but does NOT deliver email yet — see the
-  TODO(orchestrator) in src/app/api/contact/route.ts. We never tell the user a
-  message was "sent." On a server/network failure we degrade gracefully to a
-  prefilled mailto: so the inquiry is never lost.
-
-  TODO(orchestrator): wire Resend/Formspree to clientservices@fortresstaxadvisors.com
+  The form POSTs JSON to /api/contact. Success is shown only when the server
+  confirms that both the advisor notification and the submitter acknowledgment
+  were accepted for delivery. On a server/network failure, it degrades to a
+  prefilled mailto so the visitor still has a direct path to the firm.
 */
 
 const CLIENT_SERVICE_EMAIL = "clientservices@fortresstaxadvisors.com";
-
-const ENTITY_OPTIONS = [
-  { value: "individual", label: "Individual / household" },
-  { value: "s-corp", label: "S corporation" },
-  { value: "c-corp", label: "C corporation" },
-  { value: "partnership-llc", label: "Partnership / LLC" },
-  { value: "sole-proprietor", label: "Sole proprietorship" },
-  { value: "trust-estate", label: "Trust or estate" },
-  { value: "family-office", label: "Family office" },
-  { value: "multiple", label: "Multiple entities" },
-  { value: "not-sure", label: "Not sure yet" },
-];
-
-const TIMELINE_OPTIONS = [
-  { value: "active", label: "Active — a decision or deadline is in front of us" },
-  { value: "this-quarter", label: "This quarter" },
-  { value: "this-year", label: "This tax year" },
-  { value: "planning-ahead", label: "Planning ahead — no fixed deadline" },
-  { value: "exploring", label: "Exploring options" },
-];
-
-const HEARD_OPTIONS = [
-  { value: "referral", label: "Referral from an advisor or peer" },
-  { value: "search", label: "Search" },
-  { value: "insights", label: "A Fortress article or alert" },
-  { value: "event", label: "An event or speaking engagement" },
-  { value: "existing", label: "Existing relationship with Fortress" },
-  { value: "other", label: "Other" },
-];
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 type FormState = {
   name: string;
@@ -149,8 +125,22 @@ export function ConsultationForm() {
     {}
   );
   const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState(
+    "We couldn’t submit the form just now."
+  );
+  const [website, setWebsite] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
   const successRef = useRef<HTMLDivElement>(null);
+  const lastAttemptRef = useRef<{
+    signature: string;
+    submissionId: string;
+  } | null>(null);
+
+  const handleTurnstileToken = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
 
   const set = (key: keyof FormState) => (value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -204,21 +194,65 @@ export function ConsultationForm() {
       return;
     }
 
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setErrorMessage("Please complete the security check and try again.");
+      setStatus("error");
+      return;
+    }
+
+    const signature = JSON.stringify(values);
+    if (lastAttemptRef.current?.signature !== signature) {
+      lastAttemptRef.current = {
+        signature,
+        submissionId: crypto.randomUUID(),
+      };
+    }
+    const submissionId = lastAttemptRef.current.submissionId;
+
     setStatus("submitting");
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          ...values,
+          website,
+          turnstileToken,
+          submissionId,
+        }),
       });
-      if (!res.ok) throw new Error(`Bad status ${res.status}`);
+      const result = (await res.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            delivered?: boolean;
+            confirmationQueued?: boolean;
+            error?: string;
+          }
+        | null;
+      if (
+        !res.ok ||
+        result?.ok !== true ||
+        result.delivered !== true ||
+        result.confirmationQueued !== true
+      ) {
+        throw new Error(
+          result?.error || "We couldn’t submit the form just now."
+        );
+      }
       setStatus("success");
       // Move focus to the confirmation so it's announced.
       window.setTimeout(() => successRef.current?.focus(), 50);
-    } catch {
+    } catch (error) {
       // Graceful degradation: hand the inquiry to the user's mail client so
-      // it is never silently lost while the delivery provider is unwired.
+      // it is never silently lost if automated delivery is unavailable.
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "We couldn’t submit the form just now."
+      );
       setStatus("error");
+      setTurnstileToken("");
+      setTurnstileResetKey((value) => value + 1);
     }
   }
 
@@ -233,11 +267,15 @@ export function ConsultationForm() {
           <KeystoneGlyph className="h-6 w-6 text-[var(--accent-ink)]" />
         </span>
         <h3 className="serif mt-6 t-h3 text-[var(--ink)]">
-          Your note has reached us.
+          Your inquiry has been submitted.
         </h3>
         <p className="lede mt-4 max-w-xl text-[var(--muted)]">
-          Thank you, {values.name.split(" ")[0] || "and welcome"}. A Fortress
-          advisor will review what you&rsquo;ve shared and respond{" "}
+          Thank you, {values.name.split(" ")[0] || "and welcome"}. We&rsquo;ve
+          sent a confirmation to{" "}
+          <strong className="font-semibold text-[var(--ink)]">
+            {values.email}
+          </strong>
+          . A Fortress advisor will review what you&rsquo;ve shared and respond{" "}
           <strong className="font-semibold text-[var(--ink)]">
             within one business day
           </strong>
@@ -268,8 +306,24 @@ export function ConsultationForm() {
       onSubmit={handleSubmit}
       noValidate
       aria-describedby={`${baseId}-formnote`}
-      className="panel p-6 md:p-9"
+      className="panel relative p-6 md:p-9"
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-[10000px] top-auto h-px w-px overflow-hidden opacity-0"
+      >
+        <label htmlFor={fid("website")}>Leave this field empty</label>
+        <input
+          id={fid("website")}
+          name="website"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(event) => setWebsite(event.target.value)}
+        />
+      </div>
+
       <fieldset className="m-0 border-0 p-0" disabled={status === "submitting"}>
         <legend className="sr-only">Start a conversation with Fortress</legend>
 
@@ -378,6 +432,13 @@ export function ConsultationForm() {
             onChange={set("heardFrom")}
             onBlur={blur("heardFrom")}
           />
+          {TURNSTILE_SITE_KEY ? (
+            <TurnstileWidget
+              siteKey={TURNSTILE_SITE_KEY}
+              resetKey={turnstileResetKey}
+              onToken={handleTurnstileToken}
+            />
+          ) : null}
         </div>
 
         {status === "error" ? (
@@ -386,7 +447,7 @@ export function ConsultationForm() {
             className="mt-7 rounded-[12px] border border-[var(--line-strong)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] p-5"
           >
             <p className="text-[0.92rem] font-semibold text-[var(--ink)]">
-              We couldn&rsquo;t submit the form just now.
+              {errorMessage}
             </p>
             <p className="mt-1.5 text-[0.88rem] leading-7 text-[var(--muted)]">
               Nothing was lost. Send the same details straight to our client
@@ -407,7 +468,15 @@ export function ConsultationForm() {
               *
             </span>{" "}
             Required. We reply within one business day. What you share is used
-            only to prepare for our conversation.
+            to respond to your inquiry and evaluate fit, as described in our{" "}
+            <Link
+              href="/privacy"
+              className="text-[var(--accent-ink)] underline underline-offset-2"
+            >
+              Privacy Policy
+            </Link>
+            . Please don&rsquo;t include Social Security numbers, tax IDs,
+            account credentials, or tax documents.
           </p>
           <Button type="submit" arrow className="w-full shrink-0 sm:w-auto">
             {status === "submitting" ? "Sending…" : "Start the conversation"}

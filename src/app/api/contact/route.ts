@@ -23,7 +23,7 @@ export const runtime = "nodejs";
 
 const DEFAULT_TO_EMAIL = "clientservices@fortresstaxadvisors.com";
 const DEFAULT_FROM_EMAIL =
-  "Fortress Tax Advisors <inquiries@fortresstaxadvisors.com>";
+  "Fortress Tax Advisors <clientservices@fortresstaxadvisors.com>";
 const AWS_REGION =
   process.env.FORTRESS_AWS_REGION?.trim() ||
   process.env.AWS_REGION?.trim() ||

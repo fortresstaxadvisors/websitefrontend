@@ -11,9 +11,8 @@ import {
 } from "@/components/firm-identity/leadership-cards";
 
 /*
-  Leadership — a FULL page (two principals), quiet and credible. No-photo
-  monogram cards designed to swap in real headshots later with zero layout
-  change (see MonogramPortrait in firm-identity/shared.tsx).
+  Leadership — a FULL page (two principals), quiet and credible. Portrait cards
+  use supplied headshots with a monogram fallback and a stable layout.
 
   TRUTHFULNESS (critical here):
    - Only the two confirmed principals and confirmed professional-coordination facts.
@@ -44,6 +43,10 @@ const PRINCIPALS: Principal[] = [
   {
     name: "Tyler Ballein",
     initials: "TB",
+    photo: {
+      src: "/images/leadership/tyler-ballein.jpg",
+      alt: "Portrait of Tyler Ballein, Founding and Managing Partner at Fortress Tax Advisors",
+    },
     title: "Founding & Managing Partner",
     bio: [
       "Tyler Ballein founded Fortress Tax Advisors and leads the firm as Managing Partner. His relationship with the work began early: he grew up around the discipline of accounting through his mother's career in the field, long before he pursued formal accounting training of his own.",

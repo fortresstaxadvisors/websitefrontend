@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { Eyebrow } from "@/components/ui/primitives";
 import { Reveal } from "@/components/reveal";
@@ -67,54 +68,67 @@ export function FirmPageHero({
 }
 
 /**
- * MonogramPortrait — a no-photo leadership card surface, built to swap in a
- * real headshot later with ZERO layout change. It owns a fixed aspect ratio
- * (the same a portrait will occupy), a quiet slate-raised ground, ashlar
- * coursing, and a serif monogram with a dimension tick — so the empty state
- * reads as intentional, not as a missing image.
- *
- * To swap in a photo later: drop an <Image fill> (or <img>) inside, remove the
- * monogram layer. The frame and ratio stay identical, so the grid does not move.
+ * LeadershipPortrait — a fixed-ratio leadership image frame with an intentional
+ * monogram fallback when a principal has not supplied a headshot.
  */
-export function MonogramPortrait({
+export function LeadershipPortrait({
   initials,
+  photo,
   className = "",
 }: {
   initials: string;
+  photo?: { src: string; alt: string };
   className?: string;
 }) {
   return (
     <div
       className={`relative aspect-[4/5] w-full overflow-hidden rounded-[var(--radius)] border border-[var(--line)] bg-[var(--slate-raised)] ${className}`}
     >
-      {/* faint ashlar coursing — the "stone" reading */}
-      <AshlarField
-        className="pointer-events-none absolute inset-0 text-[var(--on-dark)]"
-        opacity={0.05}
-      />
-      {/* a recessed brass keyline frame */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-3 rounded-[10px] border border-[color-mix(in_srgb,var(--accent-bright)_28%,transparent)]"
-      />
-      {/* the monogram — a locked keystone over serif initials */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <KeystoneGlyph className="h-6 w-6 text-[var(--accent-bright)] opacity-80" />
-        <span className="serif mt-3 text-[2.9rem] leading-none tracking-[0.04em] text-[var(--on-dark)] md:text-[3.4rem]">
-          {initials}
-        </span>
-        <span
-          aria-hidden="true"
-          className="mt-4 h-px w-10 bg-[var(--accent-bright)] opacity-50"
-        />
-      </div>
-      {/* a small "drawing" corner tick, bottom-right, for the technical register */}
-      <span
-        aria-hidden="true"
-        className="absolute bottom-3 right-3 text-[0.58rem] font-semibold uppercase tracking-[0.22em] text-[var(--on-dark-muted)] opacity-70"
-      >
-        Portrait
-      </span>
+      {photo ? (
+        <>
+          <Image
+            src={photo.src}
+            alt={photo.alt}
+            fill
+            sizes="(min-width: 768px) 22rem, (min-width: 368px) 20rem, 100vw"
+            className="object-cover object-center"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-3 rounded-[10px] border border-white/30"
+          />
+        </>
+      ) : (
+        <>
+          {/* faint ashlar coursing — the "stone" reading */}
+          <AshlarField
+            className="pointer-events-none absolute inset-0 text-[var(--on-dark)]"
+            opacity={0.05}
+          />
+          {/* a recessed brass keyline frame */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-3 rounded-[10px] border border-[color-mix(in_srgb,var(--accent-bright)_28%,transparent)]"
+          />
+          {/* the monogram — a locked keystone over serif initials */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <KeystoneGlyph className="h-6 w-6 text-[var(--accent-bright)] opacity-80" />
+            <span className="serif mt-3 text-[2.9rem] leading-none tracking-[0.04em] text-[var(--on-dark)] md:text-[3.4rem]">
+              {initials}
+            </span>
+            <span
+              aria-hidden="true"
+              className="mt-4 h-px w-10 bg-[var(--accent-bright)] opacity-50"
+            />
+          </div>
+          <span
+            aria-hidden="true"
+            className="absolute right-3 bottom-3 text-[0.58rem] font-semibold uppercase tracking-[0.22em] text-[var(--on-dark-muted)] opacity-70"
+          >
+            Portrait
+          </span>
+        </>
+      )}
     </div>
   );
 }

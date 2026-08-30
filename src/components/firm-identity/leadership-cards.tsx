@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { Eyebrow } from "@/components/ui/primitives";
-import { MonogramPortrait } from "@/components/firm-identity/shared";
+import { LeadershipPortrait } from "@/components/firm-identity/shared";
 
 /*
   LeadershipPrincipal — a single principal bio card. Two-column on desktop
-  (monogram portrait + bio), stacked on mobile. The MonogramPortrait owns a
-  fixed aspect ratio so a real headshot swaps in later with ZERO layout change.
+  (portrait + bio), stacked on mobile. LeadershipPortrait owns a fixed aspect
+  ratio and provides a monogram fallback when no headshot is available.
 
   TRUTHFULNESS: only confirmed principals and confirmed facts. No invented
   credentials, employers, education, or designations. Tyler is NOT a CPA, and
@@ -19,6 +19,8 @@ export type Principal = {
   name: string;
   /** Initials for the monogram (used until a headshot is supplied). */
   initials: string;
+  /** Optional public headshot asset and accessible description. */
+  photo?: { src: string; alt: string };
   title: string;
   /** Bio paragraphs. */
   bio: ReactNode[];
@@ -45,7 +47,10 @@ export function LeadershipPrincipal({
           portraitRight ? "md:order-2 md:max-w-[22rem]" : "md:max-w-[22rem]"
         }`}
       >
-        <MonogramPortrait initials={principal.initials} />
+        <LeadershipPortrait
+          initials={principal.initials}
+          photo={principal.photo}
+        />
       </div>
 
       {/* Bio column. */}

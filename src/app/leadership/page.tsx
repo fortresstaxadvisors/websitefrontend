@@ -63,6 +63,10 @@ const PRINCIPALS: Principal[] = [
   {
     name: CTO_NAME,
     initials: CTO_INITIALS,
+    photo: {
+      src: "/images/leadership/omer-muhammad.jpg",
+      alt: "Portrait of Omer Muhammad, Partner and Chief Technology Officer at Fortress Tax Advisors",
+    },
     title: "Partner & CTO",
     bio: [
       "Omer Muhammad leads the operating and technology side of the firm — the systems, processes, and client experience that let senior advisory work scale without losing the relationship at its center.",
